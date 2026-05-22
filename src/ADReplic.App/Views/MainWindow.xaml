@@ -285,6 +285,46 @@
                     </Border>
                 </TabItem>
 
+                <TabItem Header="Diagnostics">
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                        <Grid>
+                            <DataGrid x:Name="IssuesGrid" ItemsSource="{Binding Issues}"
+                                      CanUserResizeColumns="True" CanUserSortColumns="True"
+                                      CanUserReorderColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Ellipse Width="10" Height="10"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                         Fill="{Binding Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Sévérité"            Binding="{Binding Severity}" Width="90"  MinWidth="70"  SortMemberPath="Severity" />
+                                    <DataGridTextColumn Header="Code"                Binding="{Binding Code}"     Width="220" MinWidth="140" SortMemberPath="Code" />
+                                    <DataGridTextColumn Header="Anomalie"            Binding="{Binding Title}"    Width="320" MinWidth="180" SortMemberPath="Title" />
+                                    <DataGridTextColumn Header="Éléments concernés" Binding="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
+                                    <DataGridTextColumn Header="Recommandation"      Binding="{Binding Description}" Width="*" MinWidth="260" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!--
+                                Message rassurant superposé à la DataGrid quand aucune anomalie
+                                n'a été détectée. On s'appuie sur DataGrid.HasItems (propriété native
+                                WPF) couplé au converter bool-à-Collapsed : Items présents → message caché.
+                            -->
+                            <TextBlock Text="✓ Aucune anomalie de configuration détectée."
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Success}"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding HasItems, ElementName=IssuesGrid,
+                                                    Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                        </Grid>
+                    </Border>
+                </TabItem>
+
             </TabControl>
         </Border>
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ADReplic.Core.Abstractions;
 using ADReplic.Core.Diagnostics;
+using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Models;
 
 namespace ADReplic.Core.Export
@@ -32,6 +33,10 @@ namespace ADReplic.Core.Export
                 SiteLinks = topology?.SiteLinks ?? Array.Empty<SiteLinkInfo>(),
                 Summary = ComputeSummary(domainControllers, replicationLinks)
             };
+
+            // Issues calculées avant le score : laisse la porte ouverte à une
+            // future pondération du HealthScore par les issues détectées.
+            snapshot.Issues = IssueAggregator.Aggregate(snapshot);
 
             // Score calculé en dernier : il s'appuie sur les champs déjà remplis.
             snapshot.HealthScore = HealthScoreCalculator.Compute(snapshot);

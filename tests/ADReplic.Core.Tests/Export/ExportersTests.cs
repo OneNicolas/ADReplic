@@ -100,7 +100,7 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
-        public void Csv_export_produces_five_files()
+        public void Csv_export_produces_six_files_including_issues()
         {
             var basePath = Path.Combine(_tempDir, "audit");
             new CsvAuditExporter().Export(BuildSampleSnapshot(), basePath);
@@ -110,6 +110,39 @@ namespace ADReplic.Core.Tests.Export
             Assert.True(File.Exists(basePath + ".failures.csv"));
             Assert.True(File.Exists(basePath + ".sites.csv"));
             Assert.True(File.Exists(basePath + ".sitelinks.csv"));
+            Assert.True(File.Exists(basePath + ".issues.csv"));
+        }
+
+        [Fact]
+        public void Csv_issues_file_contains_expected_header()
+        {
+            var basePath = Path.Combine(_tempDir, "audit");
+            new CsvAuditExporter().Export(BuildSampleSnapshot(), basePath);
+
+            var content = File.ReadAllText(basePath + ".issues.csv");
+            Assert.Contains("Severity", content);
+            Assert.Contains("Code", content);
+            Assert.Contains("AffectedItems", content);
+        }
+
+        [Fact]
+        public void Html_export_includes_diagnostics_section()
+        {
+            var target = Path.Combine(_tempDir, "report.html");
+            new HtmlAuditExporter().Export(BuildSampleSnapshot(), target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("Diagnostics", content);
+        }
+
+        [Fact]
+        public void Json_export_includes_issues_property()
+        {
+            var target = Path.Combine(_tempDir, "audit.json");
+            new JsonAuditExporter().Export(BuildSampleSnapshot(), target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("\"issues\"", content);
         }
 
         [Fact]

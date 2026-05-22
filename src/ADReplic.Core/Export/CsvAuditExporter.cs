@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using ADReplic.Core.Abstractions;
+using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Models;
 
 namespace ADReplic.Core.Export
@@ -31,6 +32,26 @@ namespace ADReplic.Core.Export
             WriteReplicationFailures(snapshot.ReplicationFailures, basePath + ".failures.csv");
             WriteSites(snapshot.Sites, basePath + ".sites.csv");
             WriteSiteLinks(snapshot.SiteLinks, basePath + ".sitelinks.csv");
+            WriteIssues(snapshot.Issues, basePath + ".issues.csv");
+        }
+
+        private static void WriteIssues(IReadOnlyList<DetectedIssue> issues, string path)
+        {
+            var sb = new StringBuilder();
+            AppendHeader(sb, "Severity", "Code", "Title", "Description", "AffectedItems");
+            if (issues != null)
+            {
+                foreach (var i in issues)
+                {
+                    AppendRow(sb,
+                        i.Severity.ToString(),
+                        i.Code,
+                        i.Title,
+                        i.Description,
+                        i.AffectedItems == null ? "" : string.Join("|", i.AffectedItems));
+                }
+            }
+            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
         }
 
         private static void WriteReplicationFailures(IReadOnlyList<ReplicationFailureInfo> failures, string path)

@@ -8,6 +8,7 @@ using System.Windows.Input;
 using ADReplic.App.Mvvm;
 using ADReplic.Core.Abstractions;
 using ADReplic.Core.Diagnostics;
+using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Discovery;
 using ADReplic.Core.Export;
 using ADReplic.Core.Models;
@@ -58,6 +59,7 @@ namespace ADReplic.App.ViewModels
             ReplicationFailures = new ObservableCollection<ReplicationFailureInfo>();
             Sites = new ObservableCollection<SiteInfo>();
             SiteLinks = new ObservableCollection<SiteLinkInfo>();
+            Issues = new ObservableCollection<DetectedIssue>();
 
             RefreshCommand = new AsyncRelayCommand(RefreshAllAsync, () => !IsBusy);
             ExportCommand = new RelayCommand<string>(OnExport, _ => !IsBusy && HasData);
@@ -72,6 +74,7 @@ namespace ADReplic.App.ViewModels
         public ObservableCollection<ReplicationFailureInfo> ReplicationFailures { get; }
         public ObservableCollection<SiteInfo> Sites { get; }
         public ObservableCollection<SiteLinkInfo> SiteLinks { get; }
+        public ObservableCollection<DetectedIssue> Issues { get; }
 
         public ICommand RefreshCommand { get; }
         public ICommand ExportCommand { get; }
@@ -198,6 +201,7 @@ namespace ADReplic.App.ViewModels
             ReplicationFailures.Clear();
             Sites.Clear();
             SiteLinks.Clear();
+            Issues.Clear();
             _topology = null;
             ForestName = null;
             HealthScore = null;
@@ -236,6 +240,7 @@ namespace ADReplic.App.ViewModels
                     var snapshot = AuditSnapshotBuilder.Build(
                         ForestName, dcs, links, _topology, failures);
                     HealthScore = snapshot.HealthScore;
+                    foreach (var issue in snapshot.Issues) Issues.Add(issue);
                 }
             }
             catch (OperationCanceledException)

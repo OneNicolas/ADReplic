@@ -12,6 +12,7 @@
         'Get-ADRReplicationStatus',
         'Get-ADRReplicationFailure',
         'Get-ADRTopology',
+        'Get-ADRIssue',
         'Export-ADRAudit'
     )
     FunctionsToExport = @()
@@ -20,7 +21,7 @@
     PrivateData = @{
         PSData = @{
             Tags = @('ActiveDirectory','Replication','Audit','Scopi')
-            ProjectUri = ''
+            ProjectUri = 'https://github.com/OneNicolas/ADReplic'
         }
     }
 }

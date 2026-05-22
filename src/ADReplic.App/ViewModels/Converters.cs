@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Models;
 
 namespace ADReplic.App.ViewModels
@@ -116,6 +117,40 @@ namespace ADReplic.App.ViewModels
                     case HealthLevel.Excellent: return Excellent;
                     case HealthLevel.Warning:   return Warning;
                     case HealthLevel.Critical:  return Critical;
+                }
+            }
+            return Neutral;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static SolidColorBrush Freeze(byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
+    }
+
+    public sealed class IssueSeverityToBrushConverter : IValueConverter
+    {
+        public static readonly IssueSeverityToBrushConverter Instance = new IssueSeverityToBrushConverter();
+
+        private static readonly SolidColorBrush Info     = Freeze(0x1F, 0x6F, 0xEB);
+        private static readonly SolidColorBrush Warning  = Freeze(0x9A, 0x67, 0x00);
+        private static readonly SolidColorBrush Critical = Freeze(0xD1, 0x24, 0x2F);
+        private static readonly SolidColorBrush Neutral  = Freeze(0x6E, 0x77, 0x81);
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is IssueSeverity s)
+            {
+                switch (s)
+                {
+                    case IssueSeverity.Info:     return Info;
+                    case IssueSeverity.Warning:  return Warning;
+                    case IssueSeverity.Critical: return Critical;
                 }
             }
             return Neutral;

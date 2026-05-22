@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using ADReplic.Core.Abstractions;
+using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Models;
 
 namespace ADReplic.Core.Export
@@ -39,6 +40,7 @@ namespace ADReplic.Core.Export
 
             AppendHeader(sb, s);
             AppendSummaryCards(sb, s.Summary);
+            AppendDiagnosticsSection(sb, s.Issues);
             AppendFailuresSection(sb, s.ReplicationFailures);
             AppendReplicationTable(sb, s.ReplicationLinks);
             AppendSitesSection(sb, s.Sites);
@@ -164,6 +166,45 @@ namespace ADReplic.Core.Export
         private static void AppendFooter(StringBuilder sb)
         {
             sb.AppendLine("<footer>Généré par ADReplic.</footer>");
+        }
+
+        private static void AppendDiagnosticsSection(StringBuilder sb, IReadOnlyList<DetectedIssue> issues)
+        {
+            sb.AppendLine("<section><h2>Diagnostics</h2>");
+
+            if (issues == null || issues.Count == 0)
+            {
+                sb.AppendLine("<div class=\"banner ok\">✓ Aucune anomalie de configuration détectée.</div>");
+                sb.AppendLine("</section>");
+                return;
+            }
+
+            sb.AppendLine("<table><thead><tr>");
+            sb.AppendLine("<th></th><th>Sévérité</th><th>Code</th><th>Anomalie</th><th>Éléments concernés</th><th>Recommandation</th>");
+            sb.AppendLine("</tr></thead><tbody>");
+            foreach (var issue in issues)
+            {
+                sb.Append("<tr>");
+                sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", IssueSeverityDotClass(issue.Severity));
+                sb.AppendFormat("<td>{0}</td>", Encode(issue.Severity.ToString()));
+                sb.AppendFormat("<td class=\"mono\">{0}</td>", Encode(issue.Code));
+                sb.AppendFormat("<td>{0}</td>", Encode(issue.Title));
+                sb.AppendFormat("<td>{0}</td>", FormatList(issue.AffectedItems));
+                sb.AppendFormat("<td>{0}</td>", Encode(issue.Description));
+                sb.AppendLine("</tr>");
+            }
+            sb.AppendLine("</tbody></table></section>");
+        }
+
+        private static string IssueSeverityDotClass(IssueSeverity severity)
+        {
+            switch (severity)
+            {
+                case IssueSeverity.Critical: return "fail";
+                case IssueSeverity.Warning:  return "warn";
+                case IssueSeverity.Info:     return "neutral";
+                default:                     return "neutral";
+            }
         }
 
         private static void AppendFailuresSection(StringBuilder sb, IReadOnlyList<ReplicationFailureInfo> failures)

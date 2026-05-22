@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ADReplic.Core.Diagnostics.Issues;
 
 namespace ADReplic.Core.Models
 {
@@ -19,6 +20,8 @@ namespace ADReplic.Core.Models
         public IReadOnlyList<ReplicationFailureInfo> ReplicationFailures { get; set; }
         public IReadOnlyList<SiteInfo> Sites { get; set; }
         public IReadOnlyList<SiteLinkInfo> SiteLinks { get; set; }
+
+        public IReadOnlyList<DetectedIssue> Issues { get; set; }
 
         public AuditSummary Summary { get; set; }
         public HealthScore HealthScore { get; set; }
