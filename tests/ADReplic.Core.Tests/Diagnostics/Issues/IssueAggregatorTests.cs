@@ -98,10 +98,13 @@ namespace ADReplic.Core.Tests.Diagnostics.Issues
         }
 
         [Fact]
-        public void Default_aggregator_runs_seven_detectors()
+        public void Default_aggregator_runs_thirteen_detectors()
         {
             var defaults = IssueAggregator.BuildDefaultDetectors().ToList();
-            Assert.Equal(7, defaults.Count);
+            // 7 détecteurs historiques (topologie/OS/réplication) + 4 DNS + 2 Ports = 13.
+            // Ce test est volontairement strict pour forcer une réflexion explicite
+            // à chaque ajout : tout nouveau détecteur doit-il être activé par défaut ?
+            Assert.Equal(13, defaults.Count);
         }
 
         [Fact]

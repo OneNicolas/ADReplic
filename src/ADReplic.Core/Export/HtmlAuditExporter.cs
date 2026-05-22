@@ -41,6 +41,8 @@ namespace ADReplic.Core.Export
             AppendHeader(sb, s);
             AppendSummaryCards(sb, s.Summary);
             AppendDiagnosticsSection(sb, s.Issues);
+            AppendDnsHealthSection(sb, s.DnsHealth);
+            AppendPortHealthSection(sb, s.PortHealth);
             AppendFailuresSection(sb, s.ReplicationFailures);
             AppendReplicationTable(sb, s.ReplicationLinks);
             AppendSitesSection(sb, s.Sites);
@@ -204,6 +206,125 @@ namespace ADReplic.Core.Export
                 case IssueSeverity.Warning:  return "warn";
                 case IssueSeverity.Info:     return "neutral";
                 default:                     return "neutral";
+            }
+        }
+
+        private static void AppendDnsHealthSection(StringBuilder sb, DnsHealthResult dns)
+        {
+            // Sonde non exécutée : on omet entièrement la section (évite une bandeau vide)
+            // dans la GUI/PowerShell tant que la sonde n'est pas branchée (Phase D / E).
+            if (dns == null) return;
+
+            sb.AppendLine("<section><h2>Santé DNS</h2>");
+
+            if (dns.Checks == null || dns.Checks.Count == 0)
+            {
+                sb.AppendLine("<p class=\"empty\">Aucune vérification DNS effectuée.</p></section>");
+                return;
+            }
+
+            var anomalies = dns.Checks.Count(c => c.Status != DnsCheckStatus.Ok);
+            if (anomalies == 0)
+            {
+                sb.AppendLine("<div class=\"banner ok\">✓ Tous les enregistrements DNS testés sont résolvables.</div>");
+            }
+
+            sb.AppendLine("<table><thead><tr>");
+            sb.AppendLine("<th></th><th>Enregistrement</th><th>Type</th><th>Statut</th><th>Cible</th><th>Port</th><th>IP</th><th>Détail</th>");
+            sb.AppendLine("</tr></thead><tbody>");
+
+            foreach (var c in dns.Checks
+                .OrderBy(x => x.Status == DnsCheckStatus.Ok ? 1 : 0) // anomalies en tête
+                .ThenBy(x => (int)x.Type)
+                .ThenBy(x => x.RecordName, StringComparer.OrdinalIgnoreCase))
+            {
+                sb.Append("<tr>");
+                sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", DnsStatusDotClass(c.Status));
+                sb.AppendFormat("<td class=\"mono\">{0}</td>", Encode(c.RecordName));
+                sb.AppendFormat("<td>{0}</td>", DnsTypeLabel(c.Type));
+                sb.AppendFormat("<td>{0}</td>", Encode(c.Status.ToString()));
+                sb.AppendFormat("<td>{0}</td>", Encode(c.Target));
+                sb.AppendFormat("<td class=\"num\">{0}</td>", c.Port.HasValue ? c.Port.Value.ToString(CultureInfo.InvariantCulture) : "—");
+                sb.AppendFormat("<td class=\"mono\">{0}</td>", Encode(c.IpAddress));
+                sb.AppendFormat("<td>{0}</td>", Encode(c.ErrorMessage));
+                sb.AppendLine("</tr>");
+            }
+            sb.AppendLine("</tbody></table></section>");
+        }
+
+        private static string DnsStatusDotClass(DnsCheckStatus s)
+        {
+            switch (s)
+            {
+                case DnsCheckStatus.Ok:      return "ok";
+                case DnsCheckStatus.Missing: return "warn";
+                case DnsCheckStatus.Error:   return "fail";
+                default:                     return "neutral";
+            }
+        }
+
+        private static string DnsTypeLabel(DnsCheckedRecordType t)
+        {
+            switch (t)
+            {
+                case DnsCheckedRecordType.SrvLdap:     return "SRV _ldap";
+                case DnsCheckedRecordType.SrvKerberos: return "SRV _kerberos";
+                case DnsCheckedRecordType.SrvGc:       return "SRV _gc";
+                case DnsCheckedRecordType.SrvKpasswd:  return "SRV _kpasswd";
+                case DnsCheckedRecordType.ARecord:     return "A";
+                default:                               return t.ToString();
+            }
+        }
+
+        private static void AppendPortHealthSection(StringBuilder sb, PortHealthResult ports)
+        {
+            if (ports == null) return;
+
+            sb.AppendLine("<section><h2>Santé réseau (tests de ports)</h2>");
+
+            if (ports.Checks == null || ports.Checks.Count == 0)
+            {
+                sb.AppendLine("<p class=\"empty\">Aucun test de port effectué.</p></section>");
+                return;
+            }
+
+            var anomalies = ports.Checks.Count(c => c.Status != PortCheckStatus.Open);
+            if (anomalies == 0)
+            {
+                sb.AppendLine("<div class=\"banner ok\">✓ Tous les ports testés sont ouverts sur l'ensemble des contrôleurs.</div>");
+            }
+
+            sb.AppendLine("<table><thead><tr>");
+            sb.AppendLine("<th></th><th>Contrôleur</th><th>Port</th><th>Service</th><th>Statut</th><th>Temps de réponse</th><th>Détail</th>");
+            sb.AppendLine("</tr></thead><tbody>");
+
+            foreach (var c in ports.Checks
+                .OrderBy(x => x.Status == PortCheckStatus.Open ? 1 : 0) // anomalies en tête
+                .ThenBy(x => x.HostName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Port))
+            {
+                sb.Append("<tr>");
+                sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", PortStatusDotClass(c.Status));
+                sb.AppendFormat("<td>{0}</td>", Encode(c.HostName));
+                sb.AppendFormat("<td class=\"num\">{0}</td>", c.Port);
+                sb.AppendFormat("<td>{0}</td>", Encode(c.ServiceLabel));
+                sb.AppendFormat("<td>{0}</td>", Encode(c.Status.ToString()));
+                sb.AppendFormat("<td class=\"num\">{0} ms</td>", (int)c.ResponseTime.TotalMilliseconds);
+                sb.AppendFormat("<td>{0}</td>", Encode(c.ErrorMessage));
+                sb.AppendLine("</tr>");
+            }
+            sb.AppendLine("</tbody></table></section>");
+        }
+
+        private static string PortStatusDotClass(PortCheckStatus s)
+        {
+            switch (s)
+            {
+                case PortCheckStatus.Open:    return "ok";
+                case PortCheckStatus.Closed:  return "fail";
+                case PortCheckStatus.Timeout: return "warn";
+                case PortCheckStatus.Error:   return "warn";
+                default:                      return "neutral";
             }
         }
 

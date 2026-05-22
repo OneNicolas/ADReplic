@@ -58,6 +58,62 @@ namespace ADReplic.Core.Tests.Export
                 });
         }
 
+        /// <summary>Snapshot enrichi avec des sondes DNS et Ports pour tester les nouveaux exports.</summary>
+        private static AuditSnapshot BuildSampleSnapshotWithHealthProbes()
+        {
+            var dns = new DnsHealthResult
+            {
+                Checks = new[]
+                {
+                    new DnsCheckResult
+                    {
+                        RecordName = "_ldap._tcp.dc._msdcs.scopi.local",
+                        Type = DnsCheckedRecordType.SrvLdap,
+                        Status = DnsCheckStatus.Ok,
+                        Target = "DC01.scopi.local",
+                        Port = 389,
+                        Priority = 0,
+                        Weight = 100
+                    },
+                    new DnsCheckResult
+                    {
+                        RecordName = "_kpasswd._tcp.scopi.local",
+                        Type = DnsCheckedRecordType.SrvKpasswd,
+                        Status = DnsCheckStatus.Missing,
+                        ErrorCode = 9003,
+                        ErrorMessage = "DNS name does not exist."
+                    }
+                }
+            };
+
+            var ports = new PortHealthResult
+            {
+                Checks = new[]
+                {
+                    new PortCheckResult
+                    {
+                        HostName = "DC01.scopi.local", Port = 389, ServiceLabel = "LDAP",
+                        Status = PortCheckStatus.Open, ResponseTime = System.TimeSpan.FromMilliseconds(12)
+                    },
+                    new PortCheckResult
+                    {
+                        HostName = "DC01.scopi.local", Port = 636, ServiceLabel = "LDAPS",
+                        Status = PortCheckStatus.Closed, ResponseTime = System.TimeSpan.FromMilliseconds(5)
+                    }
+                }
+            };
+
+            return AuditSnapshotBuilder.Build(
+                "scopi.local",
+                new[] { new DomainControllerInfo { HostName = "DC01.scopi.local", Domain = "scopi.local" } },
+                System.Array.Empty<ReplicationLink>(),
+                topology: null,
+                failures: null,
+                isSingleDcMode: false,
+                dnsHealth: dns,
+                portHealth: ports);
+        }
+
         [Fact]
         public void Html_export_writes_valid_file_containing_forest_name()
         {
@@ -100,7 +156,7 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
-        public void Csv_export_produces_six_files_including_issues()
+        public void Csv_export_produces_eight_files_one_per_category()
         {
             var basePath = Path.Combine(_tempDir, "audit");
             new CsvAuditExporter().Export(BuildSampleSnapshot(), basePath);
@@ -111,6 +167,8 @@ namespace ADReplic.Core.Tests.Export
             Assert.True(File.Exists(basePath + ".sites.csv"));
             Assert.True(File.Exists(basePath + ".sitelinks.csv"));
             Assert.True(File.Exists(basePath + ".issues.csv"));
+            Assert.True(File.Exists(basePath + ".dns.csv"));
+            Assert.True(File.Exists(basePath + ".ports.csv"));
         }
 
         [Fact]
@@ -136,6 +194,80 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
+        public void Html_export_omits_dns_section_when_probe_not_executed()
+        {
+            var target = Path.Combine(_tempDir, "report.html");
+            new HtmlAuditExporter().Export(BuildSampleSnapshot(), target);
+
+            var content = File.ReadAllText(target);
+            // Sans sonde DNS, pas de section : l'app actuelle continue d'afficher
+            // le rapport historique sans bandeau vide.
+            Assert.DoesNotContain("Santé DNS", content);
+        }
+
+        [Fact]
+        public void Html_export_omits_port_section_when_probe_not_executed()
+        {
+            var target = Path.Combine(_tempDir, "report.html");
+            new HtmlAuditExporter().Export(BuildSampleSnapshot(), target);
+
+            var content = File.ReadAllText(target);
+            Assert.DoesNotContain("Santé réseau", content);
+        }
+
+        [Fact]
+        public void Html_export_includes_dns_section_with_probe_data()
+        {
+            var target = Path.Combine(_tempDir, "report.html");
+            new HtmlAuditExporter().Export(BuildSampleSnapshotWithHealthProbes(), target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("Santé DNS", content);
+            Assert.Contains("_ldap._tcp.dc._msdcs.scopi.local", content);
+            Assert.Contains("SRV _kpasswd", content);
+            Assert.Contains("Missing", content);
+        }
+
+        [Fact]
+        public void Html_export_includes_port_section_with_probe_data()
+        {
+            var target = Path.Combine(_tempDir, "report.html");
+            new HtmlAuditExporter().Export(BuildSampleSnapshotWithHealthProbes(), target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("Santé réseau", content);
+            Assert.Contains("LDAPS", content);
+            Assert.Contains("Closed", content);
+            Assert.Contains("Open", content);
+        }
+
+        [Fact]
+        public void Html_export_shows_reassuring_banner_when_dns_all_ok()
+        {
+            var dns = new DnsHealthResult
+            {
+                Checks = new[]
+                {
+                    new DnsCheckResult
+                    {
+                        RecordName = "_ldap._tcp.dc._msdcs.exemple.local",
+                        Type = DnsCheckedRecordType.SrvLdap,
+                        Status = DnsCheckStatus.Ok,
+                        Target = "dc01.exemple.local", Port = 389
+                    }
+                }
+            };
+            var snapshot = AuditSnapshotBuilder.Build(
+                "exemple.local", null, null, null, null, false, dns, null);
+
+            var target = Path.Combine(_tempDir, "report.html");
+            new HtmlAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("Tous les enregistrements DNS testés sont résolvables", content);
+        }
+
+        [Fact]
         public void Json_export_includes_issues_property()
         {
             var target = Path.Combine(_tempDir, "audit.json");
@@ -155,6 +287,58 @@ namespace ADReplic.Core.Tests.Export
             Assert.Contains("HostName", content);
             Assert.Contains("DC01.scopi.local", content);
             Assert.Contains("Paris", content);
+        }
+
+        [Fact]
+        public void Csv_dns_file_has_header_even_when_no_probe_executed()
+        {
+            var basePath = Path.Combine(_tempDir, "audit");
+            new CsvAuditExporter().Export(BuildSampleSnapshot(), basePath);
+
+            var content = File.ReadAllText(basePath + ".dns.csv");
+            Assert.Contains("RecordName", content);
+            Assert.Contains("Status", content);
+        }
+
+        [Fact]
+        public void Csv_ports_file_has_header_even_when_no_probe_executed()
+        {
+            var basePath = Path.Combine(_tempDir, "audit");
+            new CsvAuditExporter().Export(BuildSampleSnapshot(), basePath);
+
+            var content = File.ReadAllText(basePath + ".ports.csv");
+            Assert.Contains("HostName", content);
+            Assert.Contains("Port", content);
+            Assert.Contains("ServiceLabel", content);
+        }
+
+        [Fact]
+        public void Csv_dns_file_contains_probe_data_when_provided()
+        {
+            var basePath = Path.Combine(_tempDir, "audit");
+            new CsvAuditExporter().Export(BuildSampleSnapshotWithHealthProbes(), basePath);
+
+            var content = File.ReadAllText(basePath + ".dns.csv");
+            Assert.Contains("_ldap._tcp.dc._msdcs.scopi.local", content);
+            Assert.Contains("SrvLdap", content);
+            Assert.Contains("Ok", content);
+            Assert.Contains("SrvKpasswd", content);
+            Assert.Contains("Missing", content);
+        }
+
+        [Fact]
+        public void Csv_ports_file_contains_probe_data_when_provided()
+        {
+            var basePath = Path.Combine(_tempDir, "audit");
+            new CsvAuditExporter().Export(BuildSampleSnapshotWithHealthProbes(), basePath);
+
+            var content = File.ReadAllText(basePath + ".ports.csv");
+            Assert.Contains("LDAP", content);
+            Assert.Contains("LDAPS", content);
+            Assert.Contains("389", content);
+            Assert.Contains("636", content);
+            Assert.Contains("Open", content);
+            Assert.Contains("Closed", content);
         }
     }
 }

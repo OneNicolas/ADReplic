@@ -82,5 +82,47 @@ namespace ADReplic.Core.Tests.Export
                 "scopi.local", null, null, null, null, isSingleDcMode: true);
             Assert.True(snapshot.IsSingleDcMode);
         }
+
+        [Fact]
+        public void Dns_health_defaults_to_null_when_not_provided()
+        {
+            var snapshot = AuditSnapshotBuilder.Build("exemple.local", null, null);
+            Assert.Null(snapshot.DnsHealth);
+        }
+
+        [Fact]
+        public void Port_health_defaults_to_null_when_not_provided()
+        {
+            var snapshot = AuditSnapshotBuilder.Build("exemple.local", null, null);
+            Assert.Null(snapshot.PortHealth);
+        }
+
+        [Fact]
+        public void Dns_health_is_propagated_when_provided()
+        {
+            var dns = new DnsHealthResult
+            {
+                Checks = new[] { new DnsCheckResult { RecordName = "_ldap._tcp.dc._msdcs.exemple.local" } }
+            };
+
+            var snapshot = AuditSnapshotBuilder.Build(
+                "exemple.local", null, null, null, null, false, dns, null);
+
+            Assert.Same(dns, snapshot.DnsHealth);
+        }
+
+        [Fact]
+        public void Port_health_is_propagated_when_provided()
+        {
+            var ports = new PortHealthResult
+            {
+                Checks = new[] { new PortCheckResult { HostName = "dc01.exemple.local", Port = 389 } }
+            };
+
+            var snapshot = AuditSnapshotBuilder.Build(
+                "exemple.local", null, null, null, null, false, null, ports);
+
+            Assert.Same(ports, snapshot.PortHealth);
+        }
     }
 }

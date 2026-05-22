@@ -54,6 +54,14 @@ namespace ADReplic.Core.Diagnostics.Issues
             yield return new SiteNoSubnetDetector();
             yield return new SiteNoDcDetector();
             yield return new SiteLinkCostDetector();
+            // Détecteurs DNS (silencieux si DnsHealth == null)
+            yield return new DnsSrvCriticalMissingDetector();
+            yield return new DnsSrvOptionalMissingDetector();
+            yield return new DnsResolutionErrorDetector();
+            yield return new DnsDcARecordMissingDetector();
+            // Détecteurs Ports (silencieux si PortHealth == null)
+            yield return new PortCriticalClosedDetector();
+            yield return new PortClosedOrFilteredDetector();
         }
     }
 }

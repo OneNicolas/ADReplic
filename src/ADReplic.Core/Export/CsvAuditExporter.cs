@@ -10,7 +10,8 @@ using ADReplic.Core.Models;
 namespace ADReplic.Core.Export
 {
     /// <summary>
-    /// Exporte deux fichiers CSV : "{base}.dc.csv" et "{base}.replication.csv".
+    /// Exporte plusieurs fichiers CSV par audit, un par catégorie :
+    /// dc, replication, failures, sites, sitelinks, issues, dns, ports.
     /// Encodage UTF-8 avec BOM pour ouverture correcte sous Excel.
     /// Séparateur point-virgule (locale FR par défaut sous Windows).
     /// </summary>
@@ -33,6 +34,57 @@ namespace ADReplic.Core.Export
             WriteSites(snapshot.Sites, basePath + ".sites.csv");
             WriteSiteLinks(snapshot.SiteLinks, basePath + ".sitelinks.csv");
             WriteIssues(snapshot.Issues, basePath + ".issues.csv");
+            WriteDnsHealth(snapshot.DnsHealth, basePath + ".dns.csv");
+            WritePortHealth(snapshot.PortHealth, basePath + ".ports.csv");
+        }
+
+        private static void WriteDnsHealth(DnsHealthResult dns, string path)
+        {
+            var sb = new StringBuilder();
+            AppendHeader(sb,
+                "RecordName", "Type", "Status",
+                "Target", "Port", "Priority", "Weight", "IpAddress",
+                "ErrorCode", "ErrorMessage");
+            if (dns?.Checks != null)
+            {
+                foreach (var c in dns.Checks)
+                {
+                    AppendRow(sb,
+                        c.RecordName,
+                        c.Type.ToString(),
+                        c.Status.ToString(),
+                        c.Target,
+                        c.Port.HasValue ? c.Port.Value.ToString(CultureInfo.InvariantCulture) : "",
+                        c.Priority.HasValue ? c.Priority.Value.ToString(CultureInfo.InvariantCulture) : "",
+                        c.Weight.HasValue ? c.Weight.Value.ToString(CultureInfo.InvariantCulture) : "",
+                        c.IpAddress,
+                        c.ErrorCode.ToString(CultureInfo.InvariantCulture),
+                        c.ErrorMessage);
+                }
+            }
+            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
+        }
+
+        private static void WritePortHealth(PortHealthResult ports, string path)
+        {
+            var sb = new StringBuilder();
+            AppendHeader(sb,
+                "HostName", "Port", "ServiceLabel", "Status",
+                "ResponseTimeMs", "ErrorMessage");
+            if (ports?.Checks != null)
+            {
+                foreach (var c in ports.Checks)
+                {
+                    AppendRow(sb,
+                        c.HostName,
+                        c.Port.ToString(CultureInfo.InvariantCulture),
+                        c.ServiceLabel,
+                        c.Status.ToString(),
+                        ((int)c.ResponseTime.TotalMilliseconds).ToString(CultureInfo.InvariantCulture),
+                        c.ErrorMessage);
+                }
+            }
+            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
         }
 
         private static void WriteIssues(IReadOnlyList<DetectedIssue> issues, string path)
