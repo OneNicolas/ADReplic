@@ -104,5 +104,18 @@ namespace ADReplic.Core.Tests.Diagnostics.Issues
             var issues = new IsolatedDcDetector().Detect(snap).ToList();
             Assert.Empty(issues);
         }
+
+        [Fact]
+        public void Returns_nothing_in_single_dc_mode()
+        {
+            // Mode DC seul : on a interrogé un seul DC, donc l'absence de lien
+            // dans le snapshot n'a aucune valeur d'isolation.
+            var snap = Snapshot(
+                new[] { Dc("DC01"), Dc("DC02"), Dc("DC03") },
+                new[] { Link("DC01", "DC02") });
+            snap.IsSingleDcMode = true;
+
+            Assert.Empty(new IsolatedDcDetector().Detect(snap).ToList());
+        }
     }
 }

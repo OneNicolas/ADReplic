@@ -66,5 +66,15 @@ namespace ADReplic.Core.Tests.Diagnostics.Issues
 
             Assert.Empty(new SingleDcDomainDetector().Detect(snap).ToList());
         }
+
+        [Fact]
+        public void Returns_nothing_in_single_dc_mode()
+        {
+            // Mode DC seul : l'inventaire à 1 DC est attendu, pas un SPOF réel.
+            var snap = Snapshot(Dc("DC01", "exemple.local"));
+            snap.IsSingleDcMode = true;
+
+            Assert.Empty(new SingleDcDomainDetector().Detect(snap).ToList());
+        }
     }
 }

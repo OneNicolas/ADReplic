@@ -30,6 +30,18 @@ namespace ADReplic.Core.Discovery
                 cancellationToken);
         }
 
+        public Task<DomainControllerInfo> GetSingleAsync(
+            string dcHostName,
+            AuditContext context,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(dcHostName))
+                throw new ArgumentException("Nom de DC requis.", nameof(dcHostName));
+            if (context == null) throw new ArgumentNullException(nameof(context));
+
+            return Task.Run(() => DiscoverSingle(dcHostName, context, cancellationToken), cancellationToken);
+        }
+
         private static IReadOnlyList<DomainControllerInfo> Discover(
             AuditContext context,
             CancellationToken cancellationToken)
@@ -53,6 +65,30 @@ namespace ADReplic.Core.Discovery
             }
 
             return list;
+        }
+
+        private static DomainControllerInfo DiscoverSingle(
+            string dcHostName,
+            AuditContext context,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Forest + rôles FSMO globaux sont toujours collectés, on en a besoin pour
+            // déterminer si le DC visé détient un rôle (PDC, RID...). Le coût est minime
+            // (lecture des partitions Configuration) et garantit que les exports
+            // restent fidèles même en mode ciblé.
+            var forest = DirectoryContextFactory.OpenForest(context);
+            var forestFsmoRoles = CollectForestFsmoRoles(forest);
+
+            var serverContext = DirectoryContextFactory.CreateServerContext(context, dcHostName);
+            var dc = DomainController.GetDomainController(serverContext);
+
+            var domain = dc.Domain;
+            var domainFsmoRoles = CollectDomainFsmoRoles(domain);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return BuildInfo(dc, domain, forest, forestFsmoRoles, domainFsmoRoles, DateTime.Now);
         }
 
         private static DomainControllerInfo BuildInfo(

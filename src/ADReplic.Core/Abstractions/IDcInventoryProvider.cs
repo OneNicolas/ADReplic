@@ -14,5 +14,14 @@ namespace ADReplic.Core.Abstractions
         Task<IReadOnlyList<DomainControllerInfo>> GetAllAsync(
             AuditContext context,
             CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Construit un inventaire d'un seul DC, sans énumérer toute la forêt.
+        /// Utilisé par le mode "audit ciblé" de la GUI.
+        /// </summary>
+        Task<DomainControllerInfo> GetSingleAsync(
+            string dcHostName,
+            AuditContext context,
+            CancellationToken cancellationToken);
     }
 }

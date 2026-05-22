@@ -23,6 +23,14 @@ namespace ADReplic.Core.Models
 
         public IReadOnlyList<DetectedIssue> Issues { get; set; }
 
+        /// <summary>
+        /// Vrai si l'audit a porté sur un seul DC (mode ciblé) plutôt que sur
+        /// toute la forêt. Permet aux détecteurs dont la prémisse repose sur
+        /// un inventaire complet (ex : DC isolé, domaine mono-DC) de se taire
+        /// pour éviter des faux positifs garantis par construction.
+        /// </summary>
+        public bool IsSingleDcMode { get; set; }
+
         public AuditSummary Summary { get; set; }
         public HealthScore HealthScore { get; set; }
     }

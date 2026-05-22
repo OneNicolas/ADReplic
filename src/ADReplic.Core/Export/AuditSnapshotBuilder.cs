@@ -18,7 +18,8 @@ namespace ADReplic.Core.Export
             IReadOnlyList<DomainControllerInfo> domainControllers,
             IReadOnlyList<ReplicationLink> replicationLinks,
             TopologySnapshot topology = null,
-            IReadOnlyList<ReplicationFailureInfo> failures = null)
+            IReadOnlyList<ReplicationFailureInfo> failures = null,
+            bool isSingleDcMode = false)
         {
             var snapshot = new AuditSnapshot
             {
@@ -31,6 +32,7 @@ namespace ADReplic.Core.Export
                 ReplicationFailures = failures ?? Array.Empty<ReplicationFailureInfo>(),
                 Sites = topology?.Sites ?? Array.Empty<SiteInfo>(),
                 SiteLinks = topology?.SiteLinks ?? Array.Empty<SiteLinkInfo>(),
+                IsSingleDcMode = isSingleDcMode,
                 Summary = ComputeSummary(domainControllers, replicationLinks)
             };
 

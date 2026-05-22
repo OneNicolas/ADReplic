@@ -10,12 +10,17 @@ namespace ADReplic.Core.Diagnostics.Issues
     /// est un SPOF total : pas de réplication, pas de tolérance de panne,
     /// pas de balance de charge sur les authentifications.
     /// Une issue est émise par domaine concerné, en listant le DC unique.
+    ///
+    /// Garde-fou : ignoré en mode DC seul, où l'inventaire à 1 DC est attendu
+    /// par construction et ne reflète pas l'état réel du domaine.
     /// </summary>
     public sealed class SingleDcDomainDetector : IIssueDetector
     {
         public IEnumerable<DetectedIssue> Detect(AuditSnapshot snapshot)
         {
             if (snapshot?.DomainControllers == null || snapshot.DomainControllers.Count == 0)
+                yield break;
+            if (snapshot.IsSingleDcMode)
                 yield break;
 
             var byDomain = snapshot.DomainControllers

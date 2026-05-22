@@ -28,9 +28,11 @@ namespace ADReplic.App.ViewModels
         private string _statusMessage;
         private string _forestName;
         private string _targetForestName;
+        private string _targetDcHostName;
         private string _credentialUserName;
         private string _credentialPassword;
         private bool _isBusy;
+        private bool _lastAuditWasSingleDc;
         private TopologySnapshot _topology;
         private HealthScore _healthScore;
 
@@ -65,6 +67,7 @@ namespace ADReplic.App.ViewModels
             ExportCommand = new RelayCommand<string>(OnExport, _ => !IsBusy && HasData);
             EditCredentialsCommand = new RelayCommand<object>(_ => OnEditCredentials?.Invoke(), _ => !IsBusy);
             ResetTargetCommand = new RelayCommand<object>(_ => ResetTarget(), _ => !IsBusy);
+            AuditSingleDcCommand = new RelayCommand<DomainControllerInfo>(OnAuditSingleDc, _ => !IsBusy);
 
             StatusMessage = "Prêt — cliquez sur Actualiser pour lancer un audit.";
         }
@@ -80,6 +83,7 @@ namespace ADReplic.App.ViewModels
         public ICommand ExportCommand { get; }
         public ICommand EditCredentialsCommand { get; }
         public ICommand ResetTargetCommand { get; }
+        public ICommand AuditSingleDcCommand { get; }
 
         public Func<string, string, string> SaveFilePicker { get; set; }
 
@@ -112,6 +116,26 @@ namespace ADReplic.App.ViewModels
             }
         }
 
+        /// <summary>
+        /// DC à cibler exclusivement. Vide = audit complet de la forêt.
+        /// Quand renseigné, l'inventaire ne ramene que ce DC et les détecteurs
+        /// IsolatedDc / SingleDcDomain sont désactivés pour éviter les faux positifs.
+        /// </summary>
+        public string TargetDcHostName
+        {
+            get => _targetDcHostName;
+            set
+            {
+                if (SetProperty(ref _targetDcHostName, value))
+                {
+                    RaisePropertyChanged(nameof(IsSingleDcMode));
+                    RaisePropertyChanged(nameof(TargetSummary));
+                }
+            }
+        }
+
+        public bool IsSingleDcMode => !string.IsNullOrWhiteSpace(_targetDcHostName);
+
         public string CredentialUserName
         {
             get => _credentialUserName;
@@ -128,14 +152,16 @@ namespace ADReplic.App.ViewModels
         public bool HasAlternateCredentials =>
             !string.IsNullOrEmpty(_credentialUserName) && !string.IsNullOrEmpty(_credentialPassword);
 
-        /// <summary>Texte court pour le header : forêt cible + utilisateur si alt creds.</summary>
+        /// <summary>Texte court pour le header : forêt cible + DC ciblé + utilisateur si alt creds.</summary>
         public string TargetSummary
         {
             get
             {
                 var forest = string.IsNullOrWhiteSpace(_targetForestName) ? "(forêt courante)" : _targetForestName;
-                if (HasAlternateCredentials) return $"Cible : {forest} · en tant que {_credentialUserName}";
-                return $"Cible : {forest}";
+                var parts = new List<string> { "Cible : " + forest };
+                if (IsSingleDcMode)         parts.Add("DC seul : " + _targetDcHostName);
+                if (HasAlternateCredentials) parts.Add("en tant que " + _credentialUserName);
+                return string.Join(" · ", parts);
             }
         }
 
@@ -172,8 +198,16 @@ namespace ADReplic.App.ViewModels
         private void ResetTarget()
         {
             TargetForestName = null;
+            TargetDcHostName = null;
             ApplyCredentials(null, null);
             StatusMessage = "Cible réinitialisée : forêt courante, identifiants Windows.";
+        }
+
+        private void OnAuditSingleDc(DomainControllerInfo dc)
+        {
+            if (dc == null || string.IsNullOrEmpty(dc.HostName)) return;
+            TargetDcHostName = dc.HostName;
+            if (RefreshCommand.CanExecute(null)) RefreshCommand.Execute(null);
         }
 
         private static IEnumerable<IAuditExporter> DefaultExporters() => new IAuditExporter[]
@@ -203,16 +237,34 @@ namespace ADReplic.App.ViewModels
             SiteLinks.Clear();
             Issues.Clear();
             _topology = null;
+            _lastAuditWasSingleDc = false;
             ForestName = null;
             HealthScore = null;
+
+            // Snapshot du mode au début de l'audit : si l'utilisateur modifie
+            // le champ pendant la collecte, on garde la cohérence avec ce qui
+            // a réellement été interrogé (et donc avec ce qui sera exporté).
+            var singleDcMode = IsSingleDcMode;
+            var targetDc = _targetDcHostName;
 
             try
             {
                 var context = BuildContext();
                 using (var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
                 {
-                    StatusMessage = "Découverte des contrôleurs...";
-                    var dcs = await _inventoryProvider.GetAllAsync(context, cts.Token);
+                    IReadOnlyList<DomainControllerInfo> dcs;
+                    if (singleDcMode)
+                    {
+                        StatusMessage = $"Audit du DC {targetDc}...";
+                        var single = await _inventoryProvider.GetSingleAsync(targetDc, context, cts.Token);
+                        dcs = new[] { single };
+                    }
+                    else
+                    {
+                        StatusMessage = "Découverte des contrôleurs...";
+                        dcs = await _inventoryProvider.GetAllAsync(context, cts.Token);
+                    }
+
                     foreach (var dc in dcs)
                     {
                         DomainControllers.Add(dc);
@@ -238,9 +290,11 @@ namespace ADReplic.App.ViewModels
                     // réutilise la même logique que les exports pour garantir la cohérence
                     // entre ce qui s'affiche en haut et ce qui sera dans le rapport.
                     var snapshot = AuditSnapshotBuilder.Build(
-                        ForestName, dcs, links, _topology, failures);
+                        ForestName, dcs, links, _topology, failures, isSingleDcMode: singleDcMode);
                     HealthScore = snapshot.HealthScore;
                     foreach (var issue in snapshot.Issues) Issues.Add(issue);
+
+                    _lastAuditWasSingleDc = singleDcMode;
                 }
             }
             catch (OperationCanceledException)
@@ -282,7 +336,8 @@ namespace ADReplic.App.ViewModels
                     DomainControllers.ToList(),
                     ReplicationLinks.ToList(),
                     _topology,
-                    ReplicationFailures.ToList());
+                    ReplicationFailures.ToList(),
+                    isSingleDcMode: _lastAuditWasSingleDc);
                 exporter.Export(snapshot, target);
                 StatusMessage = $"Export {exporter.Format} : {target}";
             }

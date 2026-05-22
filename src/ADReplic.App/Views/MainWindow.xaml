@@ -125,6 +125,8 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="280" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="220" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
@@ -138,15 +140,23 @@
                              Text="{Binding TargetForestName, UpdateSourceTrigger=PropertyChanged}"
                              ToolTip="Laisser vide pour interroger la forêt courante de cette machine." />
 
-                    <TextBlock Grid.Column="2" Text="{Binding TargetSummary}" VerticalAlignment="Center"
+                    <TextBlock Grid.Column="2" Text="DC cible" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SubtleText}" FontSize="12"
+                               FontWeight="SemiBold" Margin="18,0,10,0" />
+
+                    <TextBox Grid.Column="3"
+                             Text="{Binding TargetDcHostName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Mode DC seul : n'auditer qu'un contrôleur précis (FQDN). Laisser vide pour un audit complet." />
+
+                    <TextBlock Grid.Column="4" Text="{Binding TargetSummary}" VerticalAlignment="Center"
                                Foreground="{DynamicResource SubtleText}" FontSize="12"
                                Margin="14,0,14,0" TextTrimming="CharacterEllipsis" />
 
-                    <Button Grid.Column="3" Content="Identifiants…" Margin="0,0,8,0"
+                    <Button Grid.Column="5" Content="Identifiants…" Margin="0,0,8,0"
                             Command="{Binding EditCredentialsCommand}"
                             ToolTip="Définir des identifiants alternatifs pour l'audit." />
 
-                    <Button Grid.Column="4" Content="Réinitialiser"
+                    <Button Grid.Column="6" Content="Réinitialiser"
                             Command="{Binding ResetTargetCommand}"
                             ToolTip="Revenir à la forêt courante et aux identifiants Windows." />
                 </Grid>
@@ -184,6 +194,33 @@
                         <DataGrid ItemsSource="{Binding DomainControllers}"
                                   CanUserResizeColumns="True" CanUserSortColumns="True"
                                   CanUserReorderColumns="True">
+                            <!--
+                                Menu contextuel attaché à chaque ligne (pas au DataGrid lui-même).
+                                Avantage : le DataContext de la ligne = DomainControllerInfo,
+                                donc CommandParameter="{Binding}" passe bien le DC sélectionné.
+
+                                Astuce ContextMenu : le menu vit dans un Popup hors du visual tree,
+                                donc RelativeSource AncestorType=DataGrid ne fonctionne PAS depuis le
+                                menu (Command resterait null). Solution standard : stocker le DataContext
+                                de la grille (le ViewModel) dans le Tag de chaque row, et y accéder via
+                                PlacementTarget.Tag depuis le menu.
+                            -->
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Tag"
+                                            Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                    <Setter Property="ContextMenu">
+                                        <Setter.Value>
+                                            <ContextMenu>
+                                                <MenuItem Header="Auditer ce DC seul"
+                                                          Command="{Binding PlacementTarget.Tag.AuditSingleDcCommand,
+                                                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </DataGrid.RowStyle>
                             <DataGrid.Columns>
                                 <DataGridTextColumn  Header="Contrôleur"  Binding="{Binding HostName}"  Width="260" MinWidth="120" SortMemberPath="HostName" />
                                 <DataGridTextColumn  Header="Domaine"     Binding="{Binding Domain}"    Width="180" MinWidth="100" SortMemberPath="Domain" />

@@ -67,5 +67,20 @@ namespace ADReplic.Core.Tests.Export
 
             Assert.Equal(3, snapshot.Summary.DomainControllerCount);
         }
+
+        [Fact]
+        public void Is_single_dc_mode_defaults_to_false()
+        {
+            var snapshot = AuditSnapshotBuilder.Build("scopi.local", null, null);
+            Assert.False(snapshot.IsSingleDcMode);
+        }
+
+        [Fact]
+        public void Is_single_dc_mode_is_propagated_to_snapshot()
+        {
+            var snapshot = AuditSnapshotBuilder.Build(
+                "scopi.local", null, null, null, null, isSingleDcMode: true);
+            Assert.True(snapshot.IsSingleDcMode);
+        }
     }
 }

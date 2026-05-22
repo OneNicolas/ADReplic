@@ -12,6 +12,7 @@ namespace ADReplic.Core.Diagnostics.Issues
     ///
     /// Garde-fous (pour éviter les faux positifs) :
     /// - inventaire à 1 seul DC → ignoré (SingleDcDomainDetector s'en charge)
+    /// - mode DC seul → ignoré (faux positif garanti par construction)
     /// - aucun lien observé → ignoré (la sonde a probablement échoué partout)
     /// </summary>
     public sealed class IsolatedDcDetector : IIssueDetector
@@ -19,6 +20,8 @@ namespace ADReplic.Core.Diagnostics.Issues
         public IEnumerable<DetectedIssue> Detect(AuditSnapshot snapshot)
         {
             if (snapshot?.DomainControllers == null || snapshot.DomainControllers.Count < 2)
+                yield break;
+            if (snapshot.IsSingleDcMode)
                 yield break;
             if (snapshot.ReplicationLinks == null || snapshot.ReplicationLinks.Count == 0)
                 yield break;
