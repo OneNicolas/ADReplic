@@ -1,0 +1,292 @@
+<Window x:Class="ADReplic.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:ADReplic.App.ViewModels"
+        mc:Ignorable="d"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        Title="ADReplic — État de réplication AD"
+        Height="740" Width="1280"
+        MinHeight="540" MinWidth="980"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Surface}">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+    </Window.InputBindings>
+
+    <DockPanel LastChildFill="True">
+
+        <!-- ====================================================================
+             Barre de menu (Fichier, Outils, Aide)
+             Le Foreground est appliqué explicitement sur les items racines
+             (visibles sur la barre) pour qu'ils suivent le thème, sans toucher
+             aux sous-menus qui restent gérés par Windows.
+             ==================================================================== -->
+        <Menu DockPanel.Dock="Top" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
+            <MenuItem Header="_Fichier" Foreground="{DynamicResource Foreground}">
+                <MenuItem Header="_Actualiser"        Command="{Binding RefreshCommand}"
+                          InputGestureText="F5" />
+                <Separator />
+                <MenuItem Header="Exporter en _CSV"   Command="{Binding ExportCommand}" CommandParameter="CSV" />
+                <MenuItem Header="Exporter en _JSON"  Command="{Binding ExportCommand}" CommandParameter="JSON" />
+                <MenuItem Header="Exporter en _HTML"  Command="{Binding ExportCommand}" CommandParameter="HTML" />
+                <Separator />
+                <MenuItem Header="_Quitter" Click="OnQuitClick" InputGestureText="Alt+F4" />
+            </MenuItem>
+            <MenuItem Header="_Outils" Foreground="{DynamicResource Foreground}">
+                <MenuItem Header="_Identifiants alternatifs…" Command="{Binding EditCredentialsCommand}" />
+                <MenuItem Header="_Réinitialiser la cible"    Command="{Binding ResetTargetCommand}" />
+                <Separator />
+                <MenuItem Header="_Thème">
+                    <MenuItem Header="_Clair"  Click="OnThemeLightClick" />
+                    <MenuItem Header="_Sombre" Click="OnThemeDarkClick" />
+                </MenuItem>
+            </MenuItem>
+            <MenuItem Header="_Aide" Foreground="{DynamicResource Foreground}">
+                <MenuItem Header="_Guide de démarrage"     Click="OnHelpClick" />
+                <MenuItem Header="_Documentation en ligne" Click="OnDocsClick" />
+                <Separator />
+                <MenuItem Header="À _propos d'ADReplic…"   Click="OnAboutClick" />
+            </MenuItem>
+        </Menu>
+
+        <!-- ====================================================================
+             Header : titre + badge centré + actions + cible
+             ==================================================================== -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceElevated}"
+                BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1"
+                Padding="24,16">
+            <StackPanel>
+
+                <!-- Ligne 1 : 3 colonnes (titre / badge centré / actions) -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Logo + titre, aligné à gauche -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image Source="{StaticResource AppIcon}" Width="36" Height="36" Margin="0,0,12,0" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="ADReplic" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Foreground}" />
+                            <TextBlock Text="{Binding ForestName, StringFormat='Forêt découverte : {0}', TargetNullValue='Forêt : (non découverte)'}"
+                                       Foreground="{DynamicResource SubtleText}" FontSize="12" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Badge de santé : centré sur la fenêtre (1 ligne) -->
+                    <Border Grid.Column="1" Padding="14,8" CornerRadius="6"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Background="{Binding HealthScore.Level, Converter={x:Static vm:HealthLevelToBrushConverter.Instance}}"
+                            Visibility="{Binding HasHealthScore, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding HealthScore.Value, StringFormat='{}{0}/100'}"
+                                       Foreground="White" FontSize="16" FontWeight="Bold"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding HealthScore.Label}"
+                                       Foreground="White" FontSize="12" Opacity="0.92"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <TextBlock Text="—" Foreground="White" Opacity="0.6"
+                                       VerticalAlignment="Center" Margin="10,0,10,0" />
+                            <TextBlock Text="{Binding HealthScore.Summary}"
+                                       Foreground="White" FontSize="12" Opacity="0.92"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Actions à droite -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <Button x:Name="ExportButton" Content="Exporter ▾" Margin="0,0,10,0"
+                                Click="OnExportButtonClick">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Tableurs (CSV)" Command="{Binding ExportCommand}" CommandParameter="CSV" />
+                                    <MenuItem Header="Données (JSON)" Command="{Binding ExportCommand}" CommandParameter="JSON" />
+                                    <MenuItem Header="Rapport (HTML)" Command="{Binding ExportCommand}" CommandParameter="HTML" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                        <Button Content="Actualiser" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding RefreshCommand}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Ligne 2 -->
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="280" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="Forêt cible" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SubtleText}" FontSize="12"
+                               FontWeight="SemiBold" Margin="0,0,10,0" />
+
+                    <TextBox Grid.Column="1"
+                             Text="{Binding TargetForestName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Laisser vide pour interroger la forêt courante de cette machine." />
+
+                    <TextBlock Grid.Column="2" Text="{Binding TargetSummary}" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SubtleText}" FontSize="12"
+                               Margin="14,0,14,0" TextTrimming="CharacterEllipsis" />
+
+                    <Button Grid.Column="3" Content="Identifiants…" Margin="0,0,8,0"
+                            Command="{Binding EditCredentialsCommand}"
+                            ToolTip="Définir des identifiants alternatifs pour l'audit." />
+
+                    <Button Grid.Column="4" Content="Réinitialiser"
+                            Command="{Binding ResetTargetCommand}"
+                            ToolTip="Revenir à la forêt courante et aux identifiants Windows." />
+                </Grid>
+
+            </StackPanel>
+        </Border>
+
+        <!-- ====================================================================
+             Footer / status bar
+             ==================================================================== -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource SurfaceElevated}"
+                BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0"
+                Padding="24,10">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="8" Height="8" Margin="0,0,10,0"
+                         Fill="{DynamicResource Success}"
+                         Visibility="{Binding IsBusy, Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                <Ellipse Width="8" Height="8" Margin="0,0,10,0"
+                         Fill="{DynamicResource Accent}"
+                         Visibility="{Binding IsBusy, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource SubtleText}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <!-- ====================================================================
+             Onglets de contenu
+             Le scroll horizontal est activé via Style global DataGrid.
+             ==================================================================== -->
+        <Border Padding="20,12,20,16">
+            <TabControl>
+
+                <TabItem Header="Contrôleurs de domaine">
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                        <DataGrid ItemsSource="{Binding DomainControllers}"
+                                  CanUserResizeColumns="True" CanUserSortColumns="True"
+                                  CanUserReorderColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn  Header="Contrôleur"  Binding="{Binding HostName}"  Width="260" MinWidth="120" SortMemberPath="HostName" />
+                                <DataGridTextColumn  Header="Domaine"     Binding="{Binding Domain}"    Width="180" MinWidth="100" SortMemberPath="Domain" />
+                                <DataGridTextColumn  Header="Site"        Binding="{Binding SiteName}"  Width="160" MinWidth="100" SortMemberPath="SiteName" />
+                                <DataGridTextColumn  Header="IP"          Binding="{Binding IPAddress}" Width="120" MinWidth="100" SortMemberPath="IPAddress" />
+                                <DataGridTextColumn  Header="OS"          Binding="{Binding OSVersion}" Width="200" MinWidth="120" SortMemberPath="OSVersion" />
+                                <DataGridCheckBoxColumn Header="GC"       Binding="{Binding IsGlobalCatalog}" Width="60" MinWidth="50" SortMemberPath="IsGlobalCatalog" />
+                                <DataGridTextColumn  Header="Rôles FSMO"  Binding="{Binding Roles, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" MinWidth="200" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Échecs actifs">
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                        <DataGrid ItemsSource="{Binding ReplicationFailures}"
+                                  CanUserResizeColumns="True" CanUserSortColumns="True"
+                                  CanUserReorderColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Ellipse Width="10" Height="10"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Fill="{Binding Severity, Converter={x:Static vm:FailureSeverityToBrushConverter.Instance}}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Destination"   Binding="{Binding DestinationDc}" Width="220" MinWidth="120" SortMemberPath="DestinationDc" />
+                                <DataGridTextColumn Header="Source"        Binding="{Binding SourceDc}"      Width="220" MinWidth="120" SortMemberPath="SourceDc" />
+                                <DataGridTextColumn Header="Premier échec" Binding="{Binding FirstFailureTime, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="150" MinWidth="100" SortMemberPath="FirstFailureTime" />
+                                <DataGridTextColumn Header="Durée"         Binding="{Binding FailureDuration, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="90" MinWidth="60" SortMemberPath="FailureDuration" />
+                                <DataGridTextColumn Header="Tentatives"    Binding="{Binding ConsecutiveFailureCount}" Width="90" MinWidth="60" SortMemberPath="ConsecutiveFailureCount" />
+                                <DataGridTextColumn Header="Erreur"        Binding="{Binding LastErrorMessage}" Width="*" MinWidth="200" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Réplication">
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                        <DataGrid ItemsSource="{Binding ReplicationLinks}"
+                                  CanUserResizeColumns="True" CanUserSortColumns="True"
+                                  CanUserReorderColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Ellipse Width="10" Height="10"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Fill="{Binding Status, Converter={x:Static vm:ReplicationStatusToBrushConverter.Instance}}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Destination"         Binding="{Binding DestinationDc}"   Width="200" MinWidth="120" SortMemberPath="DestinationDc" />
+                                <DataGridTextColumn Header="Source"              Binding="{Binding SourceDc}"        Width="200" MinWidth="120" SortMemberPath="SourceDc" />
+                                <DataGridTextColumn Header="Contexte de nommage" Binding="{Binding NamingContext}"   Width="260" MinWidth="160" SortMemberPath="NamingContext" />
+                                <DataGridTextColumn Header="Type"                Binding="{Binding PartitionType}"   Width="120" MinWidth="80" SortMemberPath="PartitionType" />
+                                <DataGridTextColumn Header="Dernier succès"      Binding="{Binding LastSuccess, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="140" MinWidth="100" SortMemberPath="LastSuccess" />
+                                <DataGridTextColumn Header="Dernière tentative"  Binding="{Binding LastAttempt, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="140" MinWidth="100" SortMemberPath="LastAttempt" />
+                                <DataGridTextColumn Header="Latence"             Binding="{Binding Latency, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="90" MinWidth="60" SortMemberPath="Latency" />
+                                <DataGridTextColumn Header="Échecs"              Binding="{Binding ConsecutiveFailures}" Width="80" MinWidth="60" SortMemberPath="ConsecutiveFailures" />
+                                <DataGridTextColumn Header="Message"             Binding="{Binding LastResultMessage}" Width="*" MinWidth="200" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Sites">
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                        <DataGrid ItemsSource="{Binding Sites}"
+                                  CanUserResizeColumns="True" CanUserSortColumns="True"
+                                  CanUserReorderColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Site"          Binding="{Binding Name}"     Width="180" MinWidth="100" SortMemberPath="Name" />
+                                <DataGridTextColumn Header="Localisation"  Binding="{Binding Location}" Width="180" MinWidth="100" SortMemberPath="Location" />
+                                <DataGridTextColumn Header="Contrôleurs"   Binding="{Binding DomainControllers, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="260" MinWidth="160" />
+                                <DataGridTextColumn Header="Sous-réseaux"  Binding="{Binding Subnets, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
+                                <DataGridTextColumn Header="Têtes de pont" Binding="{Binding BridgeheadServers, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" MinWidth="160" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+                <TabItem Header="Liens inter-sites">
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                        <DataGrid ItemsSource="{Binding SiteLinks}"
+                                  CanUserResizeColumns="True" CanUserSortColumns="True"
+                                  CanUserReorderColumns="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn     Header="Nom"           Binding="{Binding Name}" Width="220" MinWidth="120" SortMemberPath="Name" />
+                                <DataGridTextColumn     Header="Sites reliés"  Binding="{Binding Sites, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="280" MinWidth="160" />
+                                <DataGridTextColumn     Header="Coût"          Binding="{Binding Cost}"  Width="80"  MinWidth="60" SortMemberPath="Cost" />
+                                <DataGridTextColumn     Header="Intervalle"    Binding="{Binding ReplicationInterval, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="110" MinWidth="80" SortMemberPath="ReplicationInterval" />
+                                <DataGridTextColumn     Header="Transport"     Binding="{Binding TransportType}" Width="130" MinWidth="90" SortMemberPath="TransportType" />
+                                <DataGridCheckBoxColumn Header="Notifications" Binding="{Binding ChangeNotificationEnabled}" Width="*" MinWidth="120" SortMemberPath="ChangeNotificationEnabled" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </TabItem>
+
+            </TabControl>
+        </Border>
+
+    </DockPanel>
+</Window>

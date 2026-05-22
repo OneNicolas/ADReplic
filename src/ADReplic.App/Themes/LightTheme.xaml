@@ -1,0 +1,30 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Thème clair : fond clair, texte sombre, accents bleus.
+         Les couleurs sémantiques (Success/Warning/Danger) restent identiques
+         entre thèmes pour préserver la lecture des états. -->
+
+    <SolidColorBrush x:Key="Accent"        Color="#1F6FEB" />
+    <SolidColorBrush x:Key="AccentHover"   Color="#1858C4" />
+    <SolidColorBrush x:Key="AccentPressed" Color="#114A9E" />
+
+    <SolidColorBrush x:Key="Surface"       Color="#F5F7FA" />
+    <SolidColorBrush x:Key="SurfaceAlt"    Color="#FAFBFC" />
+    <SolidColorBrush x:Key="SurfaceElevated" Color="#FFFFFF" />
+
+    <SolidColorBrush x:Key="Foreground"    Color="#1B1F23" />
+    <SolidColorBrush x:Key="SubtleText"    Color="#57606A" />
+
+    <SolidColorBrush x:Key="Border"        Color="#D8DEE4" />
+    <SolidColorBrush x:Key="BorderStrong"  Color="#B8C0CA" />
+
+    <SolidColorBrush x:Key="Success"       Color="#1A7F37" />
+    <SolidColorBrush x:Key="Warning"       Color="#9A6700" />
+    <SolidColorBrush x:Key="Danger"        Color="#D1242F" />
+
+    <SolidColorBrush x:Key="RowHover"      Color="#F0F4F8" />
+    <SolidColorBrush x:Key="RowSelected"   Color="#DEEAFB" />
+
+</ResourceDictionary>

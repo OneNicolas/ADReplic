@@ -1,0 +1,23 @@
+# Normalise les fins de ligne en LF dans le repo, CRLF en checkout Windows
+* text=auto eol=crlf
+
+# Sources C# / XAML / PowerShell : toujours en texte
+*.cs       text
+*.csproj   text
+*.sln      text
+*.xaml     text
+*.props    text
+*.targets  text
+*.ps1      text
+*.psm1     text
+*.psd1     text
+*.md       text
+
+# Fichiers binaires — pas de conversion
+*.exe    binary
+*.dll    binary
+*.pdb    binary
+*.png    binary
+*.ico    binary
+*.jpg    binary
+*.zip    binary

@@ -1,0 +1,35 @@
+## Artefacts de build .NET
+bin/
+obj/
+dist/
+publish/
+*.user
+*.suo
+*.DotSettings.user
+.vs/
+
+## Fichiers temporaires WPF (générés par le compilateur XAML)
+*_wpftmp.csproj
+*_wpftmp.sln
+
+## NuGet
+packages/
+*.nupkg
+
+## Logs
+*.log
+
+## OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+## Fichiers de patch temporaires (ne jamais versionner)
+**/_patch*.txt
+**/_*.tmp
+
+## Données locales runtime (jamais commiter)
+%APPDATA%/ADReplic/
+
+## Code legacy hors périmètre (archive locale uniquement, pas dans le repo)
+Existant/
