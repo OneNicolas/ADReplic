@@ -120,7 +120,7 @@ Import-Module .\Modules\ADReplic\ADReplic.psd1
 
 # Exemples
 Get-ADRDcInventory
-Get-ADRReplicationStatus -ForestName lyceerondeau.bsg
+Get-ADRReplicationStatus -ForestName exemple.local
 Get-ADRReplicationFailure -Credential (Get-Credential)
 Export-ADRAudit -Path C:\Temp\audit.html -Format HTML
 ```
@@ -137,7 +137,7 @@ Aucune donnée sensible n'est persistée — les identifiants saisis dans le dia
 
 ## Testé sur
 
-- Forêt `lyceerondeau.bsg` (Windows Server 2025, 3 DC SRV-CD-01/02/03, 30 liens de réplication)
+- Forêt AD multi-DC sous Windows Server 2022 (3 DC, 30 liens de réplication inter-sites)
 - Postes Windows 10 et Windows 11 (en domaine et hors-domaine avec UPN)
 
 ## Roadmap
