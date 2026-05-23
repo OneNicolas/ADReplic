@@ -103,8 +103,12 @@ PREREQUIS
 UTILISATION
 -----------
 1) Interface graphique :
-   Double-clic sur Lancer-GUI.cmd
-   (ou directement App\ADReplic.exe)
+   Double-clic sur Lancer-GUI.cmd a la racine du pack.
+   (equivalent : double-clic sur App\ADReplic.exe dans le sous-dossier)
+
+   Le launcher Lancer-GUI.cmd est juste un raccourci pratique pour
+   eviter d'aller chercher l'exe dans le sous-dossier App. Il fait un
+   simple "start App\ADReplic.exe", rien d'autre.
 
 2) Console PowerShell :
    Double-clic sur Lancer-PowerShell.cmd
@@ -116,7 +120,10 @@ UTILISATION
      Get-ADRReplicationStatus    Matrice complete des liens de replication
      Get-ADRReplicationFailure   Echecs de replication en cours
      Get-ADRTopology             Sites, sous-reseaux, liens inter-sites
+     Get-ADRDnsHealth            Sante DNS (SRV + A records des DC)
+     Get-ADRPortHealth           Sante reseau (tests de ports TCP par DC)
      Export-ADRAudit             Rapport complet (CSV / JSON / HTML)
+     Register-ADRScheduledAudit  Planifie un audit recurrent (Daily/Weekly/Monthly)
 
    ADForestAudit (API historique, retrocompatibilite scripts existants)
      Get-ADFAReplicationStatus   Statut de replication par DC
@@ -135,6 +142,14 @@ EXEMPLES
    # API moderne
    Export-ADRAudit -Path C:\Temp\audit.html -Format HTML
    Get-ADRReplicationFailure | Format-Table DestinationDc, SourceDc, LastErrorMessage
+   Get-ADRDnsHealth | Where-Object Status -ne 'Ok'
+   Get-ADRPortHealth -DCHostName dc01.exemple.local -Port 389,636
+
+   # Planification d'un audit hebdomadaire
+   Register-ADRScheduledAudit -TaskName "ADReplic-Weekly" \`
+       -OutputFolder "\\fs01\reports\AD" \`
+       -Frequency Weekly -At "07:00" \`
+       -Credential (Get-Credential)
 
    # API historique
    Invoke-ADForestAudit                              # Score + rapport
@@ -195,6 +210,7 @@ Get-ChildItem $appOut -Include '*.pdb','*.xml' -Recurse | Remove-Item -Force
 
 Write-Host "==> Pack module ADReplic (binaire)" -ForegroundColor Cyan
 $psBin = Join-Path $root "src\ADReplic.PowerShell\bin\$Configuration\net48"
+$psSrc = Join-Path $root "src\ADReplic.PowerShell"
 $binaryModuleFiles = @(
     'ADReplic.psd1',
     'ADReplic.PowerShell.dll',
@@ -205,16 +221,30 @@ foreach ($file in $binaryModuleFiles) {
     if (-not (Test-Path $src)) { throw "Fichier manquant : $src" }
     Copy-Item $src -Destination $modBinOut -Force
 }
+# Module imbrique (script) : non copie par dotnet build, on le prend a la source.
+$nestedModule = Join-Path $psSrc 'ADReplic.Scheduling.psm1'
+if (-not (Test-Path $nestedModule)) { throw "Module imbrique manquant : $nestedModule" }
+Copy-Item $nestedModule -Destination $modBinOut -Force
 
 Write-Host "==> Pack module ADForestAudit (surcouche)" -ForegroundColor Cyan
-$psSrc = Join-Path $root 'src\ADForestAudit'
-Copy-Item (Join-Path $psSrc 'ADForestAudit.psd1') -Destination $modPsOut -Force
-Copy-Item (Join-Path $psSrc 'ADForestAudit.psm1') -Destination $modPsOut -Force
+$adfaSrc = Join-Path $root 'src\ADForestAudit'
+Copy-Item (Join-Path $adfaSrc 'ADForestAudit.psd1') -Destination $modPsOut -Force
+Copy-Item (Join-Path $adfaSrc 'ADForestAudit.psm1') -Destination $modPsOut -Force
 
 Write-Host "==> Launchers et README" -ForegroundColor Cyan
 Write-LauncherGui   -Path (Join-Path $packRoot 'Lancer-GUI.cmd')
 Write-LauncherShell -Path (Join-Path $packRoot 'Lancer-PowerShell.cmd')
 Write-Readme        -Path (Join-Path $packRoot 'README.txt') -Version $version
+
+# Icone .ico a la racine du pack : utile pour creer un raccourci .lnk
+# personnalise apres deploiement (Windows ne sait pas extraire proprement
+# l'icone depuis un .cmd, seulement depuis un .exe ou .ico).
+$iconSrc = Join-Path $root 'src\ADReplic.App\Resources\ADReplic.ico'
+if (Test-Path $iconSrc) {
+    Copy-Item $iconSrc -Destination (Join-Path $packRoot 'ADReplic.ico') -Force
+} else {
+    Write-Warning "Icone source introuvable ($iconSrc). Lancez build\Generate-Icon.ps1 pour la regenerer."
+}
 
 if (-not $SkipZip) {
     Write-Host "==> Creation de l'archive" -ForegroundColor Cyan

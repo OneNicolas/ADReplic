@@ -7,6 +7,7 @@
     <RootNamespace>ADReplic.App</RootNamespace>
     <AssemblyName>ADReplic</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Resources\ADReplic.ico</ApplicationIcon>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
 

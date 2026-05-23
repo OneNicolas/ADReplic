@@ -11,6 +11,8 @@ using ADReplic.Core.Diagnostics;
 using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Discovery;
 using ADReplic.Core.Export;
+using ADReplic.Core.Health.Dns;
+using ADReplic.Core.Health.Ports;
 using ADReplic.Core.Models;
 using ADReplic.Core.Replication;
 using ADReplic.Core.Topology;
@@ -23,6 +25,8 @@ namespace ADReplic.App.ViewModels
         private readonly IReplicationProbe _replicationProbe;
         private readonly IReplicationFailureProbe _failureProbe;
         private readonly ITopologyProvider _topologyProvider;
+        private readonly IDnsHealthProbe _dnsHealthProbe;
+        private readonly IPortHealthProbe _portHealthProbe;
         private readonly IReadOnlyDictionary<string, IAuditExporter> _exporters;
 
         private string _statusMessage;
@@ -34,11 +38,16 @@ namespace ADReplic.App.ViewModels
         private bool _isBusy;
         private bool _lastAuditWasSingleDc;
         private TopologySnapshot _topology;
+        private DnsHealthResult _lastDnsHealth;
+        private PortHealthResult _lastPortHealth;
         private HealthScore _healthScore;
 
         public MainViewModel()
             : this(new DcInventoryProvider(), new ReplicationProbe(), new ReplicationFailureProbe(),
-                   new TopologyProvider(), DefaultExporters())
+                   new TopologyProvider(),
+                   new DnsHealthProbe(new Win32DnsResolver()),
+                   new PortHealthProbe(new TcpPortProber()),
+                   DefaultExporters())
         {
         }
 
@@ -47,12 +56,16 @@ namespace ADReplic.App.ViewModels
             IReplicationProbe replicationProbe,
             IReplicationFailureProbe failureProbe,
             ITopologyProvider topologyProvider,
+            IDnsHealthProbe dnsHealthProbe,
+            IPortHealthProbe portHealthProbe,
             IEnumerable<IAuditExporter> exporters)
         {
             _inventoryProvider = inventoryProvider ?? throw new ArgumentNullException(nameof(inventoryProvider));
             _replicationProbe = replicationProbe ?? throw new ArgumentNullException(nameof(replicationProbe));
             _failureProbe = failureProbe ?? throw new ArgumentNullException(nameof(failureProbe));
             _topologyProvider = topologyProvider ?? throw new ArgumentNullException(nameof(topologyProvider));
+            _dnsHealthProbe = dnsHealthProbe ?? throw new ArgumentNullException(nameof(dnsHealthProbe));
+            _portHealthProbe = portHealthProbe ?? throw new ArgumentNullException(nameof(portHealthProbe));
             _exporters = (exporters ?? Enumerable.Empty<IAuditExporter>())
                 .ToDictionary(e => e.Format, StringComparer.OrdinalIgnoreCase);
 
@@ -62,6 +75,8 @@ namespace ADReplic.App.ViewModels
             Sites = new ObservableCollection<SiteInfo>();
             SiteLinks = new ObservableCollection<SiteLinkInfo>();
             Issues = new ObservableCollection<DetectedIssue>();
+            DnsChecks = new ObservableCollection<DnsCheckResult>();
+            PortChecks = new ObservableCollection<PortCheckResult>();
 
             RefreshCommand = new AsyncRelayCommand(RefreshAllAsync, () => !IsBusy);
             ExportCommand = new RelayCommand<string>(OnExport, _ => !IsBusy && HasData);
@@ -78,6 +93,8 @@ namespace ADReplic.App.ViewModels
         public ObservableCollection<SiteInfo> Sites { get; }
         public ObservableCollection<SiteLinkInfo> SiteLinks { get; }
         public ObservableCollection<DetectedIssue> Issues { get; }
+        public ObservableCollection<DnsCheckResult> DnsChecks { get; }
+        public ObservableCollection<PortCheckResult> PortChecks { get; }
 
         public ICommand RefreshCommand { get; }
         public ICommand ExportCommand { get; }
@@ -236,7 +253,11 @@ namespace ADReplic.App.ViewModels
             Sites.Clear();
             SiteLinks.Clear();
             Issues.Clear();
+            DnsChecks.Clear();
+            PortChecks.Clear();
             _topology = null;
+            _lastDnsHealth = null;
+            _lastPortHealth = null;
             _lastAuditWasSingleDc = false;
             ForestName = null;
             HealthScore = null;
@@ -284,13 +305,28 @@ namespace ADReplic.App.ViewModels
                     var failures = await _failureProbe.GetFailuresAsync(dcs, context, cts.Token);
                     foreach (var f in failures) ReplicationFailures.Add(f);
 
+                    // Les sondes DNS et Ports sont indépendantes : on les lance en parallèle
+                    // pour gagner du temps. Aucun état partagé entre elles.
+                    StatusMessage = "Sondage DNS et réseau...";
+                    var dnsTask = ProbeDnsAsync(dcs, cts.Token);
+                    var portTask = _portHealthProbe.ProbeAsync(
+                        dcs, AdServicePorts.Default, PortHealthProbe.DefaultPerPortTimeout, cts.Token);
+                    await Task.WhenAll(dnsTask, portTask).ConfigureAwait(true);
+                    _lastDnsHealth = await dnsTask;
+                    _lastPortHealth = await portTask;
+                    if (_lastDnsHealth?.Checks != null)
+                        foreach (var c in _lastDnsHealth.Checks) DnsChecks.Add(c);
+                    if (_lastPortHealth?.Checks != null)
+                        foreach (var c in _lastPortHealth.Checks) PortChecks.Add(c);
+
                     StatusMessage = BuildFinalStatus(dcs.Count, links, failures);
 
                     // Construction du snapshot complet pour calculer le score : on
                     // réutilise la même logique que les exports pour garantir la cohérence
                     // entre ce qui s'affiche en haut et ce qui sera dans le rapport.
                     var snapshot = AuditSnapshotBuilder.Build(
-                        ForestName, dcs, links, _topology, failures, isSingleDcMode: singleDcMode);
+                        ForestName, dcs, links, _topology, failures, singleDcMode,
+                        _lastDnsHealth, _lastPortHealth);
                     HealthScore = snapshot.HealthScore;
                     foreach (var issue in snapshot.Issues) Issues.Add(issue);
 
@@ -309,6 +345,21 @@ namespace ADReplic.App.ViewModels
             {
                 IsBusy = false;
             }
+        }
+
+        /// <summary>
+        /// Lance la sonde DNS avec dérivation du domaine principal depuis le premier DC.
+        /// Si l'inventaire est vide ou que le DC n'a pas de domaine déclaré, retourne null
+        /// (la GUI/exports gèrent gracieusement l'absence de sonde).
+        /// </summary>
+        private async Task<DnsHealthResult> ProbeDnsAsync(
+            IReadOnlyList<DomainControllerInfo> dcs, CancellationToken cancellationToken)
+        {
+            var primaryDc = dcs?.FirstOrDefault(d => !string.IsNullOrEmpty(d?.Forest) && !string.IsNullOrEmpty(d?.Domain));
+            if (primaryDc == null) return null;
+
+            return await _dnsHealthProbe.ProbeAsync(
+                primaryDc.Forest, primaryDc.Domain, dcs, cancellationToken);
         }
 
         private void OnExport(string format)
@@ -337,7 +388,9 @@ namespace ADReplic.App.ViewModels
                     ReplicationLinks.ToList(),
                     _topology,
                     ReplicationFailures.ToList(),
-                    isSingleDcMode: _lastAuditWasSingleDc);
+                    _lastAuditWasSingleDc,
+                    _lastDnsHealth,
+                    _lastPortHealth);
                 exporter.Export(snapshot, target);
                 StatusMessage = $"Export {exporter.Format} : {target}";
             }

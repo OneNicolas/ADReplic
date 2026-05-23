@@ -7,6 +7,8 @@ using ADReplic.Core.Abstractions;
 using ADReplic.Core.Diagnostics;
 using ADReplic.Core.Discovery;
 using ADReplic.Core.Export;
+using ADReplic.Core.Health.Dns;
+using ADReplic.Core.Health.Ports;
 using ADReplic.Core.Models;
 using ADReplic.Core.Replication;
 using ADReplic.Core.Topology;
@@ -40,6 +42,9 @@ namespace ADReplic.PowerShell.Cmdlets
         [ValidateRange(1, 64)]
         public int Parallelism { get; set; } = 8;
 
+        [Parameter(HelpMessage = "Désactive les sondes DNS et réseau (ports). Par défaut elles sont exécutées pour aligner le contenu du rapport sur la GUI.")]
+        public SwitchParameter SkipHealthProbes { get; set; }
+
         protected override void ProcessRecord()
         {
             var context = AuditContextBuilder.Build(ForestName, Credential);
@@ -49,6 +54,8 @@ namespace ADReplic.PowerShell.Cmdlets
             IReadOnlyList<ReplicationLink> links;
             IReadOnlyList<ReplicationFailureInfo> failures;
             TopologySnapshot topology;
+            DnsHealthResult dnsHealth = null;
+            PortHealthResult portHealth = null;
 
             using (var cts = new CancellationTokenSource())
             {
@@ -74,10 +81,32 @@ namespace ADReplic.PowerShell.Cmdlets
                 failTask.Wait(cts.Token);
                 failures = failTask.Result;
                 WriteVerbose($"  {failures.Count} échec(s) actif(s).");
+
+                if (!SkipHealthProbes.IsPresent && dcs.Count > 0)
+                {
+                    var primary = dcs[0];
+                    WriteVerbose("Sondage DNS et réseau...");
+                    var dnsTask = new DnsHealthProbe(new Win32DnsResolver())
+                        .ProbeAsync(primary.Forest, primary.Domain, dcs, cts.Token);
+                    var portTask = new PortHealthProbe(new TcpPortProber()).ProbeAsync(
+                        dcs, AdServicePorts.Default, PortHealthProbe.DefaultPerPortTimeout, cts.Token);
+                    System.Threading.Tasks.Task.WaitAll(new[] { (System.Threading.Tasks.Task)dnsTask, portTask }, cts.Token);
+                    dnsHealth = dnsTask.Result;
+                    portHealth = portTask.Result;
+                    WriteVerbose($"  {dnsHealth.Checks.Count} vérifications DNS, {portHealth.Checks.Count} tests de port.");
+                }
+                else if (SkipHealthProbes.IsPresent)
+                {
+                    WriteVerbose("Sondes DNS et réseau désactivées (-SkipHealthProbes).");
+                }
             }
 
             var forestName = dcs.Count > 0 ? dcs[0].Forest : ForestName;
-            var snapshot = AuditSnapshotBuilder.Build(forestName, dcs, links, topology, failures);
+            var snapshot = AuditSnapshotBuilder.Build(
+                forestName, dcs, links, topology, failures,
+                isSingleDcMode: false,
+                dnsHealth: dnsHealth,
+                portHealth: portHealth);
 
             IAuditExporter exporter = ResolveExporter(Format);
             exporter.Export(snapshot, resolvedPath);

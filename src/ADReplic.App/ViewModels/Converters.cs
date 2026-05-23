@@ -199,4 +199,101 @@ namespace ADReplic.App.ViewModels
             return brush;
         }
     }
+
+    public sealed class DnsCheckStatusToBrushConverter : IValueConverter
+    {
+        public static readonly DnsCheckStatusToBrushConverter Instance = new DnsCheckStatusToBrushConverter();
+
+        private static readonly SolidColorBrush Ok      = Freeze(0x1A, 0x7F, 0x37);
+        private static readonly SolidColorBrush Warn    = Freeze(0x9A, 0x67, 0x00);
+        private static readonly SolidColorBrush Fail    = Freeze(0xD1, 0x24, 0x2F);
+        private static readonly SolidColorBrush Neutral = Freeze(0x6E, 0x77, 0x81);
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is DnsCheckStatus s)
+            {
+                switch (s)
+                {
+                    case DnsCheckStatus.Ok:      return Ok;
+                    case DnsCheckStatus.Missing: return Warn;
+                    case DnsCheckStatus.Error:   return Fail;
+                }
+            }
+            return Neutral;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static SolidColorBrush Freeze(byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
+    }
+
+    public sealed class PortCheckStatusToBrushConverter : IValueConverter
+    {
+        public static readonly PortCheckStatusToBrushConverter Instance = new PortCheckStatusToBrushConverter();
+
+        private static readonly SolidColorBrush Open    = Freeze(0x1A, 0x7F, 0x37);
+        private static readonly SolidColorBrush Warn    = Freeze(0x9A, 0x67, 0x00);
+        private static readonly SolidColorBrush Closed  = Freeze(0xD1, 0x24, 0x2F);
+        private static readonly SolidColorBrush Neutral = Freeze(0x6E, 0x77, 0x81);
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is PortCheckStatus s)
+            {
+                switch (s)
+                {
+                    case PortCheckStatus.Open:    return Open;
+                    case PortCheckStatus.Closed:  return Closed;
+                    case PortCheckStatus.Timeout: return Warn;
+                    case PortCheckStatus.Error:   return Warn;
+                }
+            }
+            return Neutral;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static SolidColorBrush Freeze(byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
+    }
+
+    /// <summary>
+    /// Traduit une catégorie de record DNS en libellé lisible : "SRV _ldap", "A", etc.
+    /// Aligne l'affichage GUI avec celui du rapport HTML (DnsTypeLabel) pour cohérence.
+    /// </summary>
+    public sealed class DnsCheckedRecordTypeToTextConverter : IValueConverter
+    {
+        public static readonly DnsCheckedRecordTypeToTextConverter Instance = new DnsCheckedRecordTypeToTextConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is DnsCheckedRecordType t)
+            {
+                switch (t)
+                {
+                    case DnsCheckedRecordType.SrvLdap:     return "SRV _ldap";
+                    case DnsCheckedRecordType.SrvKerberos: return "SRV _kerberos";
+                    case DnsCheckedRecordType.SrvGc:       return "SRV _gc";
+                    case DnsCheckedRecordType.SrvKpasswd:  return "SRV _kpasswd";
+                    case DnsCheckedRecordType.ARecord:     return "A";
+                }
+            }
+            return value?.ToString();
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
 }
