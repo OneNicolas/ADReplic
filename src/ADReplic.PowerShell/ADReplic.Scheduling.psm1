@@ -4,9 +4,14 @@
 # Surcouche script du module ADReplic.PowerShell qui ajoute les fonctions de
 # planification d'audits via le Task Scheduler natif Windows.
 #
+# IMPORTANT : ce fichier est volontairement en ASCII pur (pas d'accents,
+# pas d'em-dash, pas de caracteres au-dela de 127). PowerShell 5.1 lit les
+# .psm1 en Windows-1252 par defaut : un caractere UTF-8 multi-octet aurait
+# casse le parser. Si tu modifies ce fichier, conserve le format ASCII.
+#
 # Pourquoi en .psm1 plutot qu'en cmdlet C# ?
 #   La fonction Register-ADRScheduledAudit est essentiellement un orchestrateur
-#   autour de Register-ScheduledTask, New-ScheduledTaskTrigger, etc. — toutes
+#   autour de Register-ScheduledTask, New-ScheduledTaskTrigger, etc. -- toutes
 #   natives Windows. Refaire ca en C# avec PowerShell.Create() serait plus
 #   verbeux sans benefice : on gagne plus de transparence (l'admin peut lire
 #   le script avant d'executer une cmdlet privilegiee) que de typage fort.
@@ -28,14 +33,14 @@ function Register-ADRScheduledAudit {
 
     Le compte d'execution doit etre precise explicitement via l'un des trois
     parametres mutuellement exclusifs :
-      -RunAsSystem  : compte SYSTEM (NT AUTHORITY\SYSTEM) — la machine doit
-                      etre jointe au domaine et son compte doit avoir les
-                      droits de lecture AD (cas rare en pratique)
-      -Credential   : compte utilisateur AD (le mot de passe est stocke par
-                      Task Scheduler sous forme chiffree, mais visible dans
-                      schtasks /query /xml)
+      -RunAsSystem  : compte SYSTEM (NT AUTHORITY\SYSTEM). La machine doit
+                      etre jointe au domaine et son compte machine doit avoir
+                      les droits de lecture AD (cas rare en pratique).
+      -Credential   : compte utilisateur AD. Le mot de passe est stocke par
+                      Task Scheduler sous forme chiffree mais visible dans
+                      schtasks /query /xml.
       -GMSA         : Group Managed Service Account (recommande en prod ;
-                      requiert une infra AD avec KDS Root Key configuree)
+                      requiert une infra AD avec KDS Root Key configuree).
 
 .PARAMETER TaskName
     Nom de la tache planifiee (visible dans Task Scheduler).
@@ -158,9 +163,8 @@ function Register-ADRScheduledAudit {
 
     # --- 2. Construction de l'argument PowerShell qui sera lance par la tache ---
 
-    # L'argument est entoure de simples cotes en bash-like ; on echappe les
-    # chemins potentiellement problematiques (apostrophes dans OutputFolder
-    # ou ForestName, rare mais possible).
+    # Quoting defensif des litteraux PowerShell injectes dans la -Command
+    # (apostrophes dans chemins UNC ou nom de foret, rare mais possible).
     function Quote-PsLiteral([string]$s) { return "'" + ($s -replace "'", "''") + "'" }
 
     $extension = switch ($Format) {
@@ -173,8 +177,8 @@ function Register-ADRScheduledAudit {
         "-Path `$path",
         "-Format $Format"
     )
-    if ($ForestName)            { $exportArgs += "-ForestName $(Quote-PsLiteral $ForestName)" }
-    if ($SkipHealthProbes)      { $exportArgs += "-SkipHealthProbes" }
+    if ($ForestName)       { $exportArgs += "-ForestName $(Quote-PsLiteral $ForestName)" }
+    if ($SkipHealthProbes) { $exportArgs += "-SkipHealthProbes" }
     $exportArgsLine = $exportArgs -join ' '
 
     # Le command est volontairement compact et lisible (le sysadmin peut
@@ -202,7 +206,7 @@ Export-ADRAudit $exportArgsLine
 
     # Settings : timeout 1h (un audit ne doit pas durer plus longtemps),
     # rattrapage si machine eteinte, pas de retry (la prochaine occurrence
-    # prendra le relais — un retry sur une transient AD est rarement utile).
+    # prendra le relais ; un retry sur une transient AD est rarement utile).
     $settings = New-ScheduledTaskSettingsSet `
         -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
         -StartWhenAvailable `
@@ -246,7 +250,7 @@ Export-ADRAudit $exportArgsLine
 }
 
 # ============================================================================
-# Helpers internes — non exportes
+# Helpers internes -- non exportes
 # ============================================================================
 
 function New-AdrTaskTrigger {
@@ -282,7 +286,7 @@ function New-AdrTaskTrigger {
             return New-CimInstance -CimClass $class -ClientOnly -Property @{
                 Enabled        = $true
                 DaysOfMonth    = [uint32[]](1)
-                MonthsOfYear   = [uint32]4095   # toutes les bits 0..11 = tous les mois
+                MonthsOfYear   = [uint32]4095   # bits 0..11 = tous les mois
                 StartBoundary  = $start.ToString('yyyy-MM-ddTHH:mm:ss')
             }
         }
@@ -312,9 +316,9 @@ function New-AdrTaskPrincipal {
         'GMSA' {
             # gMSA = pas de mot de passe a fournir, Task Scheduler le recupere
             # via le Group Managed Service Account framework. Nom attendu :
-            # "DOMAINE\gMSA_NAME$" (avec le dollar final).
+            # 'DOMAINE\nom_gmsa$' (avec le dollar final).
             if ($GMSA -notmatch '\$$') {
-                Write-Warning "Le nom gMSA '$GMSA' ne se termine pas par '`$' — c'est inhabituel. Le format usuel est 'DOMAINE\nom_gmsa`$'."
+                Write-Warning "Le nom gMSA '$GMSA' ne se termine pas par '`$'. Format usuel : 'DOMAINE\nom_gmsa`$'."
             }
             return New-ScheduledTaskPrincipal -UserId $GMSA `
                 -LogonType Password -RunLevel Highest
