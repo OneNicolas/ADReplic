@@ -1,8 +1,8 @@
 # ADReplic — Audit de réplication Active Directory
 
-> **Version 0.3.0** — outil portable de diagnostic AD
+> **Version 0.4.0** — outil portable de diagnostic AD
 >
-> Remplaçant moderne de **Active Directory Replication Status Tool (ARST)** de Microsoft, non maintenu depuis 2014. Application WPF (.NET Framework 4.8) qui audite la santé de la réplication d'une forêt Active Directory, sans dépendance externe ni installation, dans un exécutable d'environ 200 Ko.
+> Remplaçant moderne de **Active Directory Replication Status Tool (ARST)** de Microsoft, non maintenu depuis 2014. Application WPF (.NET Framework 4.8) qui audite la santé d'une forêt Active Directory (réplication, DNS, réseau), sans dépendance externe ni installation, dans un exécutable d'environ 200 Ko.
 
 ## Fonctionnalités
 
@@ -12,9 +12,11 @@
 - **Matrice de réplication** — liens entre DC avec statut Healthy / Warning / Failing / Unreachable, sondage parallélisé
 - **Échecs actifs** — détection et classification des erreurs de réplication en cours (sévérité Recent / Sustained / Critical)
 - **Topologie inter-sites** — sites, subnets, têtes de pont, site links et coûts
-- **Score de santé** — note 0/100 avec niveaux Excellent / Warning / Critical
+- **Santé DNS** — vérification des 4 SRV critiques (`_ldap`, `_kerberos`, `_gc`, `_kpasswd`) et résolution des enregistrements A de chaque DC, via P/Invoke `DnsQuery_W` (zéro dépendance externe)
+- **Santé réseau** — tests de connectivité TCP sur 9 ports AD (53, 88, 135, 389, 445, 464, 636, 3268, 3269), distinction Closed / Timeout pour faciliter le diagnostic firewall vs service down
+- **Score de santé tripartite** — note 0/100 pondérée Réplication 50 % / DNS 25 % / Réseau 25 %, avec niveaux Excellent / Warning / Critical et renormalisation automatique des poids si une sonde est absente
 
-### Diagnostics (7 détecteurs)
+### Diagnostics (13 détecteurs)
 ADReplic identifie automatiquement les anomalies de configuration et de structure, avec une recommandation de correction pour chacune :
 
 | Code | Sévérité | Détecte |
@@ -28,17 +30,23 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 | `SITE_NO_SUBNET` | Warning | Site avec des DC mais sans subnet IP associé |
 | `SITE_NO_DC` | Info | Site déclaré sans aucun DC |
 | `SITE_LINK_COST_ABERRANT` | Warning | Coût de site link hors plage 1-10000 |
+| `DNS_SRV_CRITICAL_MISSING` | Critical | Enregistrement SRV `_ldap` ou `_kerberos` introuvable |
+| `DNS_SRV_OPTIONAL_MISSING` | Warning | Enregistrement SRV `_gc` ou `_kpasswd` introuvable |
+| `DNS_RESOLUTION_ERROR` | Warning | Erreur d'infrastructure DNS (SERVFAIL, serveur injoignable) |
+| `DNS_DC_A_RECORD_MISSING` | Critical | DC sans enregistrement A résolvable |
+| `PORT_CRITICAL_CLOSED` | Critical | Port AD critique (389/88/445) fermé ou en timeout |
+| `PORT_CLOSED_OR_FILTERED` | Warning | Port AD secondaire fermé ou en timeout |
 
 ### Interface et workflow
 - **Forêt cible** — interroger une forêt distante depuis un poste hors-domaine
 - **Identifiants alternatifs** — authentification UPN ou DOMAINE\compte
 - **Thème clair / sombre** — bascule en un clic, préférence persistée dans `%APPDATA%`
-- **Exports** — CSV (6 fichiers), JSON (snapshot complet) et HTML autonome avec CSS inline
-- **6 onglets** — Contrôleurs, Échecs actifs, Réplication, Sites, Liens inter-sites, Diagnostics
+- **Exports** — CSV (8 fichiers), JSON (snapshot complet) et HTML autonome avec CSS inline
+- **8 onglets** — Contrôleurs, Échecs actifs, Réplication, Sites, Liens inter-sites, Diagnostics, Santé DNS, Santé réseau
 - **Menu contextuel** — clic droit sur un DC pour l'auditer en mode ciblé
 
 ### Automatisation
-- **Module PowerShell binaire** — 6 cmdlets (`Get-ADRDcInventory`, `Get-ADRReplicationStatus`, `Get-ADRReplicationFailure`, `Get-ADRTopology`, `Get-ADRIssue`, `Export-ADRAudit`)
+- **Module PowerShell binaire** — 8 cmdlets (`Get-ADRDcInventory`, `Get-ADRReplicationStatus`, `Get-ADRReplicationFailure`, `Get-ADRTopology`, `Get-ADRIssue`, `Get-ADRDnsHealth`, `Get-ADRPortHealth`, `Export-ADRAudit`) + 1 fonction (`Register-ADRScheduledAudit` pour planifier des audits récurrents via Task Scheduler)
 - **Module legacy `ADForestAudit`** — surcouche PowerShell avec API FR + alias EN (compatibilité scripts existants)
 - **Portable** — exécutable single-file ~200 Ko, lançable depuis une clé USB, zéro install
 
@@ -55,8 +63,10 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 |---|---|
 | UI | WPF .NET Framework 4.8, MVVM fait main, sans framework externe |
 | AD | `System.DirectoryServices.ActiveDirectory` (zéro dépendance RSAT) |
-| PowerShell | Module binaire .NET Framework 4.8 |
-| Tests | xUnit (**142 tests verts**) |
+| DNS | P/Invoke `DnsQuery_W` (dnsapi.dll), zéro dépendance NuGet |
+| Réseau | `System.Net.Sockets.TcpClient` natif, parallélisme `SemaphoreSlim` |
+| PowerShell | Module binaire .NET Framework 4.8 + module script imbriqué |
+| Tests | xUnit (**253 tests verts**) |
 | Build | SDK-style csproj, single-file publish |
 
 ## Architecture
@@ -64,25 +74,30 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 ```
 src/
 ├── ADReplic.Core/                — DLL avec toute la logique métier (testable, sans UI)
-│   ├── Abstractions/             — Interfaces (IDcInventoryProvider, IReplicationProbe, ...)
+│   ├── Abstractions/             — Interfaces (IDcInventoryProvider, IReplicationProbe, IDnsHealthProbe, IPortHealthProbe, ...)
 │   ├── Ad/                       — DirectoryContextFactory (création contexte AD)
-│   ├── Diagnostics/              — Score, classifier d'erreurs, sévérité, Win32 messages FR
-│   │   └── Issues/               — 7 détecteurs d'anomalies + IssueAggregator
+│   ├── Diagnostics/              — Score tripartite, classifier d'erreurs, sévérité, Win32 messages FR
+│   │   └── Issues/               — 13 détecteurs d'anomalies + IssueAggregator
 │   ├── Discovery/                — DcInventoryProvider (GetAllAsync + GetSingleAsync)
 │   ├── Export/                   — CSV, JSON, HTML exporters + AuditSnapshotBuilder
-│   ├── Models/                   — DTO (DomainControllerInfo, ReplicationLink, HealthScore, DetectedIssue, ...)
+│   ├── Health/                   — Sondes DNS et réseau
+│   │   ├── Dns/                  — Win32DnsResolver (P/Invoke), DnsHealthProbe, DnsSrvNames
+│   │   └── Ports/                — TcpPortProber, PortHealthProbe, AdServicePorts
+│   ├── Models/                   — DTO (DomainControllerInfo, ReplicationLink, HealthScore, DetectedIssue, DnsCheckResult, PortCheckResult, ...)
 │   ├── Replication/              — ReplicationProbe, status evaluator, partition classifier
 │   └── Topology/                 — TopologyProvider (sites, subnets, site links)
 │
 ├── ADReplic.App/                 — WPF MVVM (UI uniquement)
 │   ├── Mvvm/                     — RelayCommand, AsyncRelayCommand, ViewModelBase
+│   ├── Resources/                — ADReplic.ico (multi-résolution, généré depuis le XAML)
 │   ├── Themes/                   — LightTheme.xaml, DarkTheme.xaml, ThemeManager
 │   ├── ViewModels/               — MainViewModel, Converters
 │   └── Views/                    — MainWindow, CredentialsDialog, AboutDialog
 │
-├── ADReplic.PowerShell/          — Cmdlets binaires partageant ADReplic.Core
+├── ADReplic.PowerShell/          — Cmdlets binaires + script imbriqué (planification)
 │   ├── ADReplic.psd1             — Manifeste module
-│   ├── Cmdlets/                  — 6 cmdlets (DcInventory, ReplicationStatus, Failure, Topology, Issue, Export)
+│   ├── ADReplic.Scheduling.psm1  — Register-ADRScheduledAudit (NestedModules)
+│   ├── Cmdlets/                  — 8 cmdlets (DcInventory, ReplicationStatus, Failure, Topology, Issue, DnsHealth, PortHealth, Export)
 │   └── Internal/                 — AuditContextBuilder
 │
 └── ADForestAudit/                — Module legacy refactoré (PowerShell pur)
@@ -91,10 +106,11 @@ src/
     └── Scripts/Invoke-ADForestAudit.ps1
 
 tests/
-└── ADReplic.Core.Tests/          — xUnit, 142 tests
+└── ADReplic.Core.Tests/          — xUnit, 253 tests
 
 build/
-└── publish.ps1                   — Produit le pack portable dans dist/
+├── publish.ps1                   — Produit le pack portable dans dist/
+└── Generate-Icon.ps1             — Régénère l'icone .ico multi-résolution depuis le XAML
 
 Release.ps1                       — Orchestrateur de release (bump + build + test + pack + tag local)
 ```
@@ -104,6 +120,7 @@ Release.ps1                       — Orchestrateur de release (bump + build + t
 - **.NET Framework 4.8** plutôt que .NET 8 : présent nativement sur Windows 10/11 et Server 2019+, zéro install client, exécutable single-file léger.
 - **WPF MVVM fait main** : pas de dépendance CommunityToolkit ou MVVM Light, le code est plus simple à auditer et l'exécutable plus léger.
 - **`System.DirectoryServices.ActiveDirectory`** : librairie native .NET, pas besoin de RSAT ni d'AD PowerShell module sur le poste qui exécute ADReplic.
+- **P/Invoke `DnsQuery_W`** : `System.Net.Dns` ne supporte pas les records SRV, et plutôt qu'embarquer une lib NuGet (DnsClient.NET ~200 Ko), on appelle directement l'API Win32 via P/Invoke avec marshaling propre des structures `DNS_RECORDW` / `DNS_SRV_DATAW`.
 - **Single-file publish** : un seul `.exe` à copier sur clé USB, pas de DLL à traîner.
 - **Localisation FR de bout en bout** : UI, code, commentaires, exports CSV/JSON/HTML.
 
@@ -132,10 +149,12 @@ dotnet run --project src/ADReplic.App
 ```
 
 Le dossier `dist/ADReplic-{version}/` contient :
-- `ADReplic.exe` (single-file, ~200 Ko)
-- `Modules/ADReplic/` (module PowerShell binaire)
-- `Modules/ADForestAudit/` (module legacy)
-- `Launchers/` (raccourcis `.cmd`)
+- `App/ADReplic.exe` (single-file, ~200 Ko)
+- `Module/ADReplic/` (module PowerShell binaire + script imbriqué)
+- `Module/ADForestAudit/` (module legacy)
+- `Lancer-GUI.cmd` (raccourci pour ne pas avoir à ouvrir le sous-dossier App)
+- `Lancer-PowerShell.cmd` (session PowerShell avec modules pré-chargés)
+- `ADReplic.ico` (icone multi-résolution pour création de raccourcis manuels)
 - `README.txt` (notice utilisateur final)
 
 ## Workflow de release
@@ -158,7 +177,7 @@ git push --tags
 
 ```powershell
 # Importer
-Import-Module .\Modules\ADReplic\ADReplic.psd1
+Import-Module .\Module\ADReplic\ADReplic.psd1
 
 # Inventaire
 Get-ADRDcInventory
@@ -170,8 +189,19 @@ Get-ADRIssue                                  # toutes les anomalies
 Get-ADRIssue -Severity Critical               # uniquement les critiques
 Get-ADRIssue -Code DC_ISOLATED, OS_UNSUPPORTED
 
-# Export complet
+# Sondes DNS / Réseau
+Get-ADRDnsHealth | Where-Object Status -ne 'Ok'
+Get-ADRPortHealth -DCHostName dc01.exemple.local -Port 389,636
+
+# Export complet (sondes activées par défaut)
 Export-ADRAudit -Path C:\Temp\audit.html -Format HTML
+Export-ADRAudit -Path C:\Temp\audit-fast.html -Format HTML -SkipHealthProbes
+
+# Planification d'audits récurrents (Task Scheduler natif Windows)
+Register-ADRScheduledAudit -TaskName "ADReplic-Weekly" `
+    -OutputFolder "\\fs01\reports\AD" `
+    -Frequency Weekly -At "07:00" `
+    -Credential (Get-Credential)
 ```
 
 ## Données locales
@@ -193,6 +223,7 @@ Aucune donnée sensible n'est persistée — les identifiants saisis dans le dia
 
 | Version | Date | Apports majeurs |
 |---|---|---|
+| **0.4.0** | mai 2026 | Sondes DNS et Réseau (4 SRV + A records, 9 ports TCP) avec P/Invoke `DnsQuery_W` et `TcpClient`, scoring tripartite renormalisé, 6 nouveaux détecteurs, 2 onglets GUI, 2 cmdlets PowerShell, planification via `Register-ADRScheduledAudit`, icône `.exe` multi-résolution générée depuis le XAML |
 | **0.3.0** | mai 2026 | Mode DC seul : audit ciblé d'un contrôleur précis (champ "DC cible" + menu contextuel), détecteurs adaptés (DC_ISOLATED et DOMAIN_SINGLE_DC désactivés en mode ciblé pour éviter les faux positifs) |
 | **0.2.0** | mai 2026 | Moteur de détection d'anomalies (7 détecteurs), onglet GUI "Diagnostics", cmdlet `Get-ADRIssue`, section HTML "Diagnostics", fichier `issues.csv` |
 | **0.1.0** | mai 2026 | Socle initial : inventaire, réplication, échecs, topologie, score de santé, 5 onglets GUI, 5 cmdlets, exports CSV/JSON/HTML, thèmes clair/sombre, pack portable |
@@ -203,11 +234,11 @@ Détail de chaque version dans les [GitHub Releases](https://github.com/OneNicol
 
 Voir le backlog priorisé interne. Prochaines features prévues :
 
-- **Sondes DNS et Ports dans le Core** — scoring tripartite Réplication 50% / DNS 25% / Ports 25%, alignement avec l'ancien module legacy
 - **Mode DC seul côté PowerShell** — paramètre `-DcName` sur les cmdlets concernées
 - **Comparaison de deux audits** — mode diff entre 2 fichiers JSON pour suivi MCO
 - **Vue topologie SVG** — visualisation graphique inter-sites
 - **Auto-refresh / mode monitoring** — réactualisation périodique avec notification de dégradation
+- **Rotation automatique des rapports planifiés** — paramètre `-MaxKeptReports` sur `Register-ADRScheduledAudit`
 
 ## Licence
 

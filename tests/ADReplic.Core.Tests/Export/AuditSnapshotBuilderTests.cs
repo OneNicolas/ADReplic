@@ -19,7 +19,7 @@ namespace ADReplic.Core.Tests.Export
                 new ReplicationLink { Status = ReplicationLinkStatus.Unreachable },
             };
 
-            var snapshot = AuditSnapshotBuilder.Build("scopi.local", new DomainControllerInfo[0], links);
+            var snapshot = AuditSnapshotBuilder.Build("exemple.local", new DomainControllerInfo[0], links);
 
             Assert.Equal(2, snapshot.Summary.HealthyLinks);
             Assert.Equal(1, snapshot.Summary.WarningLinks);
@@ -31,9 +31,9 @@ namespace ADReplic.Core.Tests.Export
         [Fact]
         public void Sets_forest_name_and_metadata()
         {
-            var snapshot = AuditSnapshotBuilder.Build("scopi.local", null, null);
+            var snapshot = AuditSnapshotBuilder.Build("exemple.local", null, null);
 
-            Assert.Equal("scopi.local", snapshot.ForestName);
+            Assert.Equal("exemple.local", snapshot.ForestName);
             Assert.False(string.IsNullOrEmpty(snapshot.GeneratedBy));
             Assert.False(string.IsNullOrEmpty(snapshot.GeneratedOn));
             Assert.NotEqual(default, snapshot.GeneratedAt);
@@ -42,7 +42,7 @@ namespace ADReplic.Core.Tests.Export
         [Fact]
         public void Null_collections_are_replaced_by_empty_arrays()
         {
-            var snapshot = AuditSnapshotBuilder.Build("scopi.local", null, null);
+            var snapshot = AuditSnapshotBuilder.Build("exemple.local", null, null);
 
             Assert.NotNull(snapshot.DomainControllers);
             Assert.NotNull(snapshot.ReplicationLinks);
@@ -63,7 +63,7 @@ namespace ADReplic.Core.Tests.Export
                 new DomainControllerInfo { HostName = "DC03" },
             };
 
-            var snapshot = AuditSnapshotBuilder.Build("scopi.local", dcs, null);
+            var snapshot = AuditSnapshotBuilder.Build("exemple.local", dcs, null);
 
             Assert.Equal(3, snapshot.Summary.DomainControllerCount);
         }
@@ -71,7 +71,7 @@ namespace ADReplic.Core.Tests.Export
         [Fact]
         public void Is_single_dc_mode_defaults_to_false()
         {
-            var snapshot = AuditSnapshotBuilder.Build("scopi.local", null, null);
+            var snapshot = AuditSnapshotBuilder.Build("exemple.local", null, null);
             Assert.False(snapshot.IsSingleDcMode);
         }
 
@@ -79,7 +79,7 @@ namespace ADReplic.Core.Tests.Export
         public void Is_single_dc_mode_is_propagated_to_snapshot()
         {
             var snapshot = AuditSnapshotBuilder.Build(
-                "scopi.local", null, null, null, null, isSingleDcMode: true);
+                "exemple.local", null, null, null, null, isSingleDcMode: true);
             Assert.True(snapshot.IsSingleDcMode);
         }
 

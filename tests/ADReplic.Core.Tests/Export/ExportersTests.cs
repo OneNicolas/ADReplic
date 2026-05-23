@@ -29,13 +29,13 @@ namespace ADReplic.Core.Tests.Export
         private static AuditSnapshot BuildSampleSnapshot()
         {
             return AuditSnapshotBuilder.Build(
-                "scopi.local",
+                "exemple.local",
                 new[]
                 {
                     new DomainControllerInfo
                     {
-                        HostName = "DC01.scopi.local",
-                        Domain = "scopi.local",
+                        HostName = "dc01.exemple.local",
+                        Domain = "exemple.local",
                         SiteName = "Paris",
                         IPAddress = "10.0.0.1",
                         OSVersion = "Windows Server 2022",
@@ -49,7 +49,7 @@ namespace ADReplic.Core.Tests.Export
                     {
                         DestinationDc = "DC01",
                         SourceDc = "DC02",
-                        NamingContext = "DC=scopi,DC=local",
+                        NamingContext = "DC=exemple,DC=local",
                         PartitionType = "Domaine",
                         Status = ReplicationLinkStatus.Healthy,
                         ConsecutiveFailures = 0,
@@ -67,17 +67,17 @@ namespace ADReplic.Core.Tests.Export
                 {
                     new DnsCheckResult
                     {
-                        RecordName = "_ldap._tcp.dc._msdcs.scopi.local",
+                        RecordName = "_ldap._tcp.dc._msdcs.exemple.local",
                         Type = DnsCheckedRecordType.SrvLdap,
                         Status = DnsCheckStatus.Ok,
-                        Target = "DC01.scopi.local",
+                        Target = "dc01.exemple.local",
                         Port = 389,
                         Priority = 0,
                         Weight = 100
                     },
                     new DnsCheckResult
                     {
-                        RecordName = "_kpasswd._tcp.scopi.local",
+                        RecordName = "_kpasswd._tcp.exemple.local",
                         Type = DnsCheckedRecordType.SrvKpasswd,
                         Status = DnsCheckStatus.Missing,
                         ErrorCode = 9003,
@@ -92,20 +92,20 @@ namespace ADReplic.Core.Tests.Export
                 {
                     new PortCheckResult
                     {
-                        HostName = "DC01.scopi.local", Port = 389, ServiceLabel = "LDAP",
+                        HostName = "dc01.exemple.local", Port = 389, ServiceLabel = "LDAP",
                         Status = PortCheckStatus.Open, ResponseTime = System.TimeSpan.FromMilliseconds(12)
                     },
                     new PortCheckResult
                     {
-                        HostName = "DC01.scopi.local", Port = 636, ServiceLabel = "LDAPS",
+                        HostName = "dc01.exemple.local", Port = 636, ServiceLabel = "LDAPS",
                         Status = PortCheckStatus.Closed, ResponseTime = System.TimeSpan.FromMilliseconds(5)
                     }
                 }
             };
 
             return AuditSnapshotBuilder.Build(
-                "scopi.local",
-                new[] { new DomainControllerInfo { HostName = "DC01.scopi.local", Domain = "scopi.local" } },
+                "exemple.local",
+                new[] { new DomainControllerInfo { HostName = "dc01.exemple.local", Domain = "exemple.local" } },
                 System.Array.Empty<ReplicationLink>(),
                 topology: null,
                 failures: null,
@@ -124,7 +124,7 @@ namespace ADReplic.Core.Tests.Export
 
             Assert.True(File.Exists(target));
             var content = File.ReadAllText(target);
-            Assert.Contains("scopi.local", content);
+            Assert.Contains("exemple.local", content);
             Assert.Contains("DC01", content);
             Assert.Contains("<html", content);
         }
@@ -152,7 +152,7 @@ namespace ADReplic.Core.Tests.Export
             Assert.StartsWith("{", content.TrimStart());
             Assert.EndsWith("}", content.TrimEnd());
             Assert.Contains("\"forestName\"", content);
-            Assert.Contains("scopi.local", content);
+            Assert.Contains("exemple.local", content);
         }
 
         [Fact]
@@ -223,7 +223,7 @@ namespace ADReplic.Core.Tests.Export
 
             var content = File.ReadAllText(target);
             Assert.Contains("Santé DNS", content);
-            Assert.Contains("_ldap._tcp.dc._msdcs.scopi.local", content);
+            Assert.Contains("_ldap._tcp.dc._msdcs.exemple.local", content);
             Assert.Contains("SRV _kpasswd", content);
             Assert.Contains("Missing", content);
         }
@@ -285,7 +285,7 @@ namespace ADReplic.Core.Tests.Export
 
             var content = File.ReadAllText(basePath + ".dc.csv");
             Assert.Contains("HostName", content);
-            Assert.Contains("DC01.scopi.local", content);
+            Assert.Contains("dc01.exemple.local", content);
             Assert.Contains("Paris", content);
         }
 
@@ -319,7 +319,7 @@ namespace ADReplic.Core.Tests.Export
             new CsvAuditExporter().Export(BuildSampleSnapshotWithHealthProbes(), basePath);
 
             var content = File.ReadAllText(basePath + ".dns.csv");
-            Assert.Contains("_ldap._tcp.dc._msdcs.scopi.local", content);
+            Assert.Contains("_ldap._tcp.dc._msdcs.exemple.local", content);
             Assert.Contains("SrvLdap", content);
             Assert.Contains("Ok", content);
             Assert.Contains("SrvKpasswd", content);

@@ -8,14 +8,14 @@ namespace ADReplic.Core.Tests.Replication
         [Fact]
         public void Schema_partition_is_recognized()
         {
-            var dn = "CN=Schema,CN=Configuration,DC=scopi,DC=local";
+            var dn = "CN=Schema,CN=Configuration,DC=exemple,DC=local";
             Assert.Equal(PartitionClassifier.SchemaLabel, PartitionClassifier.Classify(dn));
         }
 
         [Fact]
         public void Configuration_partition_is_recognized()
         {
-            var dn = "CN=Configuration,DC=scopi,DC=local";
+            var dn = "CN=Configuration,DC=exemple,DC=local";
             Assert.Equal(PartitionClassifier.ConfigurationLabel, PartitionClassifier.Classify(dn));
         }
 
@@ -23,13 +23,13 @@ namespace ADReplic.Core.Tests.Replication
         public void Schema_takes_precedence_over_Configuration()
         {
             // Schema commence par "CN=Schema,CN=Configuration" donc l'ordre des règles est critique.
-            var dn = "CN=Schema,CN=Configuration,DC=scopi,DC=local";
+            var dn = "CN=Schema,CN=Configuration,DC=exemple,DC=local";
             Assert.NotEqual(PartitionClassifier.ConfigurationLabel, PartitionClassifier.Classify(dn));
         }
 
         [Theory]
-        [InlineData("DC=DomainDnsZones,DC=scopi,DC=local")]
-        [InlineData("DC=ForestDnsZones,DC=scopi,DC=local")]
+        [InlineData("DC=DomainDnsZones,DC=exemple,DC=local")]
+        [InlineData("DC=ForestDnsZones,DC=exemple,DC=local")]
         public void DnsZones_partitions_are_recognized(string dn)
         {
             Assert.Equal(PartitionClassifier.DnsAppLabel, PartitionClassifier.Classify(dn));
@@ -38,7 +38,7 @@ namespace ADReplic.Core.Tests.Replication
         [Fact]
         public void Standard_domain_partition_is_recognized()
         {
-            var dn = "DC=scopi,DC=local";
+            var dn = "DC=exemple,DC=local";
             Assert.Equal(PartitionClassifier.DomainLabel, PartitionClassifier.Classify(dn));
         }
 
@@ -54,7 +54,7 @@ namespace ADReplic.Core.Tests.Replication
         [Fact]
         public void Classification_is_case_insensitive()
         {
-            var dn = "cn=schema,cn=configuration,dc=scopi,dc=local";
+            var dn = "cn=schema,cn=configuration,dc=exemple,dc=local";
             Assert.Equal(PartitionClassifier.SchemaLabel, PartitionClassifier.Classify(dn));
         }
     }

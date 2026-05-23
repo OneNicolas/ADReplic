@@ -13,7 +13,7 @@ namespace ADReplic.Core.Tests.Diagnostics
             ReplicationFailureInfo[] failures = null)
         {
             return AuditSnapshotBuilder.Build(
-                "scopi.local",
+                "exemple.local",
                 new DomainControllerInfo[0],
                 links ?? new ReplicationLink[0],
                 topology: null,
