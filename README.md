@@ -1,6 +1,6 @@
 # ADReplic — Audit de réplication Active Directory
 
-> **Version 0.4.0** — outil portable de diagnostic AD
+> **Version 0.6.0** — outil portable de diagnostic AD
 >
 > Remplaçant moderne de **Active Directory Replication Status Tool (ARST)** de Microsoft, non maintenu depuis 2014. Application WPF (.NET Framework 4.8) qui audite la santé d'une forêt Active Directory (réplication, DNS, réseau), sans dépendance externe ni installation, dans un exécutable d'environ 200 Ko.
 
@@ -16,15 +16,16 @@
 - **Santé réseau** — tests de connectivité TCP sur 9 ports AD (53, 88, 135, 389, 445, 464, 636, 3268, 3269), distinction Closed / Timeout pour faciliter le diagnostic firewall vs service down
 - **Score de santé tripartite** — note 0/100 pondérée Réplication 50 % / DNS 25 % / Réseau 25 %, avec niveaux Excellent / Warning / Critical et renormalisation automatique des poids si une sonde est absente
 
-### Diagnostics (13 détecteurs)
+### Diagnostics (15 détecteurs)
 ADReplic identifie automatiquement les anomalies de configuration et de structure, avec une recommandation de correction pour chacune :
 
 | Code | Sévérité | Détecte |
 |---|---|---|
+| `DC_UNREACHABLE` | Critical | DC déclaré dans l'annuaire mais ne répondant à aucune interrogation (éteint, isolé du réseau, service NTDS arrêté) |
 | `DC_ISOLATED` | Critical | Contrôleur de domaine absent de tous les liens de réplication |
 | `OS_UNSUPPORTED` | Critical | Windows Server 2003 / 2008 / 2008 R2 (hors support total) |
 | `OS_OUT_OF_EXTENDED_SUPPORT` | Warning | Windows Server 2012 / 2012 R2 (hors support étendu depuis octobre 2023) |
-| `OS_UNKNOWN` | Info | Version d'OS non reconnue |
+| `OS_UNKNOWN` | Info | Version d'OS non reconnue (silencieux si le DC est injoignable) |
 | `DOMAIN_SINGLE_DC` | Warning | Domaine avec un seul contrôleur (SPOF) |
 | `SITE_NO_BRIDGEHEAD` | Warning | Site avec des DC mais sans serveur tête de pont |
 | `SITE_NO_SUBNET` | Warning | Site avec des DC mais sans subnet IP associé |
@@ -34,19 +35,36 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 | `DNS_SRV_OPTIONAL_MISSING` | Warning | Enregistrement SRV `_gc` ou `_kpasswd` introuvable |
 | `DNS_RESOLUTION_ERROR` | Warning | Erreur d'infrastructure DNS (SERVFAIL, serveur injoignable) |
 | `DNS_DC_A_RECORD_MISSING` | Critical | DC sans enregistrement A résolvable |
+| `DNS_SRV_POINTS_TO_DEAD_DC` | Warning | Enregistrement SRV pointant vers un hôte dont tous les ports AD critiques sont inaccessibles (SRV orphelin après retrait brutal d'un DC) |
 | `PORT_CRITICAL_CLOSED` | Critical | Port AD critique (389/88/445) fermé ou en timeout |
 | `PORT_CLOSED_OR_FILTERED` | Warning | Port AD secondaire fermé ou en timeout |
+
+### Suivi dans le temps (v0.5.0)
+- **Comparaison de deux audits** — sélection de deux exports JSON, calcul du delta par catégorie (DCs, liens, échecs, sites, anomalies, DNS, ports) et extraction des **changements significatifs** (transition descendante de palier, nouveau Critical, DC perdu, nouveau failure, SRV ou port critique perdu) ; onglet GUI dédié conditionnel (visible uniquement après comparaison)
+- **Surveillance automatique** — audit récurrent à intervalle configurable (5/15/30/60 min), avec :
+  - **Ring buffer** mémoire des 50 derniers scores (mini-graphique d'historique accessible en cliquant sur le badge de score)
+  - **Snapshots disque** auto-sauvegardés dans `%APPDATA%\ADReplic\snapshots\` avec rotation automatique (100 fichiers max)
+  - **Détection automatique des changements significatifs** entre chaque cycle et le précédent
+  - **Alertes visuelles** : badge clignotant (header + status bar) et toast bas-droite avec fade in/out, acquittement au clic
+
+### Détection des DC injoignables (v0.6.0)
+- **Flag de joignabilité** — chaque DC de l'inventaire porte un indicateur `IsReachable`, positionné pendant la découverte quand toutes les interrogations réseau vers le DC échouent
+- **Anomalie explicite** — un DC down remonte un `DC_UNREACHABLE` (Critical) qui le nomme, au lieu de signaux indirects ; la surveillance déclenche l'alerte dès le cycle où le DC tombe
+- **Visible partout** — pastille verte/rouge en tête de l'onglet Contrôleurs (avec tooltip), mention *(injoignable)* dans le rapport HTML, colonne `IsReachable` dans `dc.csv`, bascule de joignabilité tracée dans le diff de comparaison
+- **Onglets clarifiés** — bandeaux d'état vide sur Échecs actifs et Réplication (« ✓ Aucun échec en cours » vs grille vide ambiguë), ligne synthétique explicite pour un DC injoignable, tri des échecs par sévérité d'abord
 
 ### Interface et workflow
 - **Forêt cible** — interroger une forêt distante depuis un poste hors-domaine
 - **Identifiants alternatifs** — authentification UPN ou DOMAINE\compte
 - **Thème clair / sombre** — bascule en un clic, préférence persistée dans `%APPDATA%`
 - **Exports** — CSV (8 fichiers), JSON (snapshot complet) et HTML autonome avec CSS inline
-- **8 onglets** — Contrôleurs, Échecs actifs, Réplication, Sites, Liens inter-sites, Diagnostics, Santé DNS, Santé réseau
+- **9 onglets** — Contrôleurs, Échecs actifs, Réplication, Sites, Liens inter-sites, Diagnostics, Santé DNS, Santé réseau, et Comparaison (conditionnel, visible uniquement après calcul d'un diff)
 - **Menu contextuel** — clic droit sur un DC pour l'auditer en mode ciblé
 
 ### Automatisation
-- **Module PowerShell binaire** — 8 cmdlets (`Get-ADRDcInventory`, `Get-ADRReplicationStatus`, `Get-ADRReplicationFailure`, `Get-ADRTopology`, `Get-ADRIssue`, `Get-ADRDnsHealth`, `Get-ADRPortHealth`, `Export-ADRAudit`) + 1 fonction (`Register-ADRScheduledAudit` pour planifier des audits récurrents via Task Scheduler)
+- **Module PowerShell binaire** — 9 cmdlets (`Get-ADRDcInventory`, `Get-ADRReplicationStatus`, `Get-ADRReplicationFailure`, `Get-ADRTopology`, `Get-ADRIssue`, `Get-ADRDnsHealth`, `Get-ADRPortHealth`, `Export-ADRAudit`, `Compare-ADRAudit`) + 1 fonction (`Register-ADRScheduledAudit` pour planifier des audits récurrents via Task Scheduler)
+- **Mode DC seul** — paramètre `-DcName` sur les cmdlets d'audit pour cibler un contrôleur précis sans énumérer la forêt (v0.6.0)
+- **Comparaison scriptable** — `Compare-ADRAudit -SignificantOnly` retourne les dégradations entre deux audits JSON : sortie vide = rien de grave, idéal pour déclencher une alerte mail/webhook (v0.6.0)
 - **Module legacy `ADForestAudit`** — surcouche PowerShell avec API FR + alias EN (compatibilité scripts existants)
 - **Portable** — exécutable single-file ~200 Ko, lançable depuis une clé USB, zéro install
 
@@ -66,7 +84,7 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 | DNS | P/Invoke `DnsQuery_W` (dnsapi.dll), zéro dépendance NuGet |
 | Réseau | `System.Net.Sockets.TcpClient` natif, parallélisme `SemaphoreSlim` |
 | PowerShell | Module binaire .NET Framework 4.8 + module script imbriqué |
-| Tests | xUnit (**253 tests verts**) |
+| Tests | xUnit (**374 tests verts**) |
 | Build | SDK-style csproj, single-file publish |
 
 ## Architecture
@@ -74,16 +92,18 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 ```
 src/
 ├── ADReplic.Core/                — DLL avec toute la logique métier (testable, sans UI)
-│   ├── Abstractions/             — Interfaces (IDcInventoryProvider, IReplicationProbe, IDnsHealthProbe, IPortHealthProbe, ...)
+│   ├── Abstractions/             — Interfaces (IDcInventoryProvider, IReplicationProbe, IDnsHealthProbe, IPortHealthProbe, IJsonAuditReader, ISnapshotStore, ...)
 │   ├── Ad/                       — DirectoryContextFactory (création contexte AD)
+│   ├── Comparison/               — AuditDiffer + SignificantChangeDetector (v0.5.0)
 │   ├── Diagnostics/              — Score tripartite, classifier d'erreurs, sévérité, Win32 messages FR
-│   │   └── Issues/               — 13 détecteurs d'anomalies + IssueAggregator
-│   ├── Discovery/                — DcInventoryProvider (GetAllAsync + GetSingleAsync)
-│   ├── Export/                   — CSV, JSON, HTML exporters + AuditSnapshotBuilder
+│   │   └── Issues/               — 15 détecteurs d'anomalies + IssueAggregator
+│   ├── Discovery/                — DcInventoryProvider (GetAllAsync + GetSingleAsync), résilient aux DC injoignables
+│   ├── Export/                   — CSV, JSON, HTML exporters + JsonAuditReader + AuditSnapshotBuilder
 │   ├── Health/                   — Sondes DNS et réseau
 │   │   ├── Dns/                  — Win32DnsResolver (P/Invoke), DnsHealthProbe, DnsSrvNames
 │   │   └── Ports/                — TcpPortProber, PortHealthProbe, AdServicePorts
 │   ├── Models/                   — DTO (DomainControllerInfo, ReplicationLink, HealthScore, DetectedIssue, DnsCheckResult, PortCheckResult, ...)
+│   ├── Monitoring/               — AuditHistory (ring buffer), SnapshotStore (rotation), MonitoringSettings (v0.5.0)
 │   ├── Replication/              — ReplicationProbe, status evaluator, partition classifier
 │   └── Topology/                 — TopologyProvider (sites, subnets, site links)
 │
@@ -91,13 +111,13 @@ src/
 │   ├── Mvvm/                     — RelayCommand, AsyncRelayCommand, ViewModelBase
 │   ├── Resources/                — ADReplic.ico (multi-résolution, généré depuis le XAML)
 │   ├── Themes/                   — LightTheme.xaml, DarkTheme.xaml, ThemeManager
-│   ├── ViewModels/               — MainViewModel, Converters
-│   └── Views/                    — MainWindow, CredentialsDialog, AboutDialog
+│   ├── ViewModels/               — MainViewModel, CompareViewModel, Converters
+│   └── Views/                    — MainWindow, CredentialsDialog, CompareDialog, AboutDialog
 │
 ├── ADReplic.PowerShell/          — Cmdlets binaires + script imbriqué (planification)
 │   ├── ADReplic.psd1             — Manifeste module
 │   ├── ADReplic.Scheduling.psm1  — Register-ADRScheduledAudit (NestedModules)
-│   ├── Cmdlets/                  — 8 cmdlets (DcInventory, ReplicationStatus, Failure, Topology, Issue, DnsHealth, PortHealth, Export)
+│   ├── Cmdlets/                  — 9 cmdlets (DcInventory, ReplicationStatus, Failure, Topology, Issue, DnsHealth, PortHealth, Export, Compare)
 │   └── Internal/                 — AuditContextBuilder
 │
 └── ADForestAudit/                — Module legacy refactoré (PowerShell pur)
@@ -106,10 +126,11 @@ src/
     └── Scripts/Invoke-ADForestAudit.ps1
 
 tests/
-└── ADReplic.Core.Tests/          — xUnit, 253 tests
+└── ADReplic.Core.Tests/          — xUnit, 374 tests
 
 build/
 ├── publish.ps1                   — Produit le pack portable dans dist/
+├── Test-PowerShellModule.ps1     — Test manuel du module sur infra réelle (copié à la racine du pack)
 └── Generate-Icon.ps1             — Régénère l'icone .ico multi-résolution depuis le XAML
 
 Release.ps1                       — Orchestrateur de release (bump + build + test + pack + tag local)
@@ -193,6 +214,17 @@ Get-ADRIssue -Code DC_ISOLATED, OS_UNSUPPORTED
 Get-ADRDnsHealth | Where-Object Status -ne 'Ok'
 Get-ADRPortHealth -DCHostName dc01.exemple.local -Port 389,636
 
+# Mode DC seul : cibler un contrôleur précis sans énumérer la forêt (v0.6.0)
+Get-ADRReplicationStatus -DcName dc01.exemple.local
+Get-ADRIssue -DcName dc01.exemple.local
+Export-ADRAudit -Path C:\Temp\audit-dc01.html -DcName dc01.exemple.local
+
+# Comparer deux audits JSON (v0.6.0) — -SignificantOnly ne retourne que les dégradations
+Compare-ADRAudit -ReferencePath C:\Audits\avant.json -CurrentPath C:\Audits\apres.json
+if (Compare-ADRAudit -ReferencePath $ref -CurrentPath $cur -SignificantOnly) {
+    Send-MailMessage -Subject "ADReplic : degradation detectee" ...
+}
+
 # Export complet (sondes activées par défaut)
 Export-ADRAudit -Path C:\Temp\audit.html -Format HTML
 Export-ADRAudit -Path C:\Temp\audit-fast.html -Format HTML -SkipHealthProbes
@@ -208,9 +240,11 @@ Register-ADRScheduledAudit -TaskName "ADReplic-Weekly" `
 
 Stockées dans `%APPDATA%\ADReplic\` :
 
-| Fichier | Contenu |
+| Fichier ou dossier | Contenu |
 |---|---|
 | `theme.txt` | Préférence thème (Light / Dark) |
+| `monitoring.json` | Intervalle d'auto-refresh persisté (l'état activé/désactivé reste volontairement non-persisté) |
+| `snapshots/` | Snapshots JSON auto-sauvegardés par la surveillance (rotation 100 fichiers max) |
 
 Aucune donnée sensible n'est persistée — les identifiants saisis dans le dialogue sont en mémoire uniquement.
 
@@ -223,6 +257,8 @@ Aucune donnée sensible n'est persistée — les identifiants saisis dans le dia
 
 | Version | Date | Apports majeurs |
 |---|---|---|
+| **0.6.0** | juillet 2026 | « DC injoignable de bout en bout » : flag `IsReachable` + détecteur `DC_UNREACHABLE` (Critical) + détection croisée `DNS_SRV_POINTS_TO_DEAD_DC` (15 détecteurs), pastille de joignabilité GUI/HTML, bandeaux d'état vide, cmdlet `Compare-ADRAudit` (`-SignificantOnly` pour l'automatisation), paramètre `-DcName` sur 4 cmdlets, garde-fou Credential à deux couches, script de test du module embarqué dans le pack |
+| **0.5.0** | mai 2026 | « ADReplic au fil du temps » : comparaison de deux audits JSON (delta par catégorie + 6 critères de changements significatifs), surveillance automatique (intervalle configurable, ring buffer historique des scores, snapshots disque rotatifs, alertes visuelles badge + toast), 9ème onglet Comparaison conditionnel, JsonAuditReader maison (sans NuGet), résilience aux DCs injoignables dans l'inventaire |
 | **0.4.0** | mai 2026 | Sondes DNS et Réseau (4 SRV + A records, 9 ports TCP) avec P/Invoke `DnsQuery_W` et `TcpClient`, scoring tripartite renormalisé, 6 nouveaux détecteurs, 2 onglets GUI, 2 cmdlets PowerShell, planification via `Register-ADRScheduledAudit`, icône `.exe` multi-résolution générée depuis le XAML |
 | **0.3.0** | mai 2026 | Mode DC seul : audit ciblé d'un contrôleur précis (champ "DC cible" + menu contextuel), détecteurs adaptés (DC_ISOLATED et DOMAIN_SINGLE_DC désactivés en mode ciblé pour éviter les faux positifs) |
 | **0.2.0** | mai 2026 | Moteur de détection d'anomalies (7 détecteurs), onglet GUI "Diagnostics", cmdlet `Get-ADRIssue`, section HTML "Diagnostics", fichier `issues.csv` |
@@ -234,11 +270,10 @@ Détail de chaque version dans les [GitHub Releases](https://github.com/OneNicol
 
 Voir le backlog priorisé interne. Prochaines features prévues :
 
-- **Mode DC seul côté PowerShell** — paramètre `-DcName` sur les cmdlets concernées
-- **Comparaison de deux audits** — mode diff entre 2 fichiers JSON pour suivi MCO
 - **Vue topologie SVG** — visualisation graphique inter-sites
-- **Auto-refresh / mode monitoring** — réactualisation périodique avec notification de dégradation
 - **Rotation automatique des rapports planifiés** — paramètre `-MaxKeptReports` sur `Register-ADRScheduledAudit`
+- **Améliorations vs dégradations** — distinguer visuellement les deux sens dans le récap de comparaison
+- **Détecteur `REPLICATION_LINK_FAILING`** — remonter dans Diagnostics les liens de réplication en échec persistant
 
 ## Licence
 

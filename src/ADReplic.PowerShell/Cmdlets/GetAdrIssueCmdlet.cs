@@ -26,7 +26,12 @@ namespace ADReplic.PowerShell.Cmdlets
         [Parameter(HelpMessage = "Nom de la forêt cible (laissez vide pour la forêt courante).")]
         public string ForestName { get; set; }
 
+        [Parameter(HelpMessage = "Audite ce seul DC (FQDN) sans énumérer la forêt. Les détecteurs supposant un inventaire complet (DC_ISOLATED, DOMAIN_SINGLE_DC) sont désactivés.")]
+        [ValidateNotNullOrEmpty]
+        public string DcName { get; set; }
+
         [Parameter(HelpMessage = "Identifiants alternatifs pour interroger une forêt distante.")]
+        [ValidateNotNull]
         [Credential]
         public PSCredential Credential { get; set; } = PSCredential.Empty;
 
@@ -42,7 +47,8 @@ namespace ADReplic.PowerShell.Cmdlets
 
         protected override void ProcessRecord()
         {
-            var context = AuditContextBuilder.Build(ForestName, Credential);
+            var context = AuditContextBuilder.Build(this, ForestName, Credential);
+            var singleDcMode = !string.IsNullOrWhiteSpace(DcName);
 
             IReadOnlyList<DomainControllerInfo> dcs;
             IReadOnlyList<ReplicationLink> links;
@@ -50,11 +56,23 @@ namespace ADReplic.PowerShell.Cmdlets
 
             using (var cts = new CancellationTokenSource())
             {
-                WriteVerbose("Découverte des contrôleurs...");
-                var invTask = new DcInventoryProvider().GetAllAsync(context, cts.Token);
-                invTask.Wait(cts.Token);
-                dcs = invTask.Result;
+                if (singleDcMode)
+                {
+                    WriteVerbose($"Audit du DC {DcName} (mode ciblé)...");
+                    var singleTask = new DcInventoryProvider().GetSingleAsync(DcName.Trim(), context, cts.Token);
+                    singleTask.Wait(cts.Token);
+                    dcs = new[] { singleTask.Result };
+                }
+                else
+                {
+                    WriteVerbose("Découverte des contrôleurs...");
+                    var invTask = new DcInventoryProvider().GetAllAsync(context, cts.Token);
+                    invTask.Wait(cts.Token);
+                    dcs = invTask.Result;
+                }
 
+                // La topologie reste collectée à pleine forêt même en mode ciblé
+                // (même choix que la GUI v0.3.0) : les détecteurs de sites en ont besoin.
                 WriteVerbose("Lecture de la topologie...");
                 var topoTask = new TopologyProvider().GetAsync(context, cts.Token);
                 topoTask.Wait(cts.Token);
@@ -67,7 +85,8 @@ namespace ADReplic.PowerShell.Cmdlets
             }
 
             var forestName = dcs.Count > 0 ? dcs[0].Forest : ForestName;
-            var snapshot = AuditSnapshotBuilder.Build(forestName, dcs, links, topology);
+            var snapshot = AuditSnapshotBuilder.Build(forestName, dcs, links, topology,
+                isSingleDcMode: singleDcMode);
 
             foreach (var issue in FilterIssues(snapshot.Issues))
             {

@@ -236,6 +236,11 @@ Write-LauncherGui   -Path (Join-Path $packRoot 'Lancer-GUI.cmd')
 Write-LauncherShell -Path (Join-Path $packRoot 'Lancer-PowerShell.cmd')
 Write-Readme        -Path (Join-Path $packRoot 'README.txt') -Version $version
 
+# Script de test manuel du module : copie a la racine du pack pour que la
+# validation sur le serveur de test soit une seule commande, sans dependre
+# du repo de dev. Le script trouve le module tout seul (.\Module\ADReplic\).
+Copy-Item (Join-Path $PSScriptRoot 'Test-PowerShellModule.ps1') -Destination $packRoot -Force
+
 # Icone .ico a la racine du pack : utile pour creer un raccourci .lnk
 # personnalise apres deploiement (Windows ne sait pas extraire proprement
 # l'icone depuis un .cmd, seulement depuis un .exe ou .ico).

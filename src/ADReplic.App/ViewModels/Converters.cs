@@ -82,6 +82,55 @@ namespace ADReplic.App.ViewModels
         }
     }
 
+    /// <summary>
+    /// Pastille de joignabilité d'un DC : vert si joignable, rouge sinon.
+    /// Mêmes teintes que les autres pastilles de statut pour rester cohérent.
+    /// </summary>
+    public sealed class ReachabilityToBrushConverter : IValueConverter
+    {
+        public static readonly ReachabilityToBrushConverter Instance = new ReachabilityToBrushConverter();
+
+        private static readonly SolidColorBrush Reachable   = Freeze(0x1A, 0x7F, 0x37);
+        private static readonly SolidColorBrush Unreachable = Freeze(0xD1, 0x24, 0x2F);
+        private static readonly SolidColorBrush Unknown     = Freeze(0x6E, 0x77, 0x81);
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool reachable) return reachable ? Reachable : Unreachable;
+            return Unknown;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static SolidColorBrush Freeze(byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
+    }
+
+    /// <summary>Libellé de tooltip pour la pastille de joignabilité.</summary>
+    public sealed class ReachabilityToTextConverter : IValueConverter
+    {
+        public static readonly ReachabilityToTextConverter Instance = new ReachabilityToTextConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool reachable)
+            {
+                return reachable
+                    ? "DC joignable"
+                    : "DC injoignable : aucune interrogation réseau n'a abouti pendant l'audit.";
+            }
+            return null;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     public sealed class LatencyToTextConverter : IValueConverter
     {
         public static readonly LatencyToTextConverter Instance = new LatencyToTextConverter();
@@ -292,6 +341,58 @@ namespace ADReplic.App.ViewModels
             }
             return value?.ToString();
         }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Renvoie true si value est égal au ConverterParameter. Sert aux MenuItem
+    /// checkables qui doivent se comporter comme un groupe de boutons radio,
+    /// par exemple le choix de l'intervalle d'auto-refresh.
+    /// </summary>
+    /// <remarks>
+    /// Le ConverterParameter est par défaut une string en XAML : on convertit donc
+    /// vers le type runtime de value avant comparaison. Cas typique : value=int 15,
+    /// parameter="15" -> on parse "15" en int et on compare.
+    /// </remarks>
+    public sealed class EqualsConverter : IValueConverter
+    {
+        public static readonly EqualsConverter Instance = new EqualsConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value == null && parameter == null) return true;
+            if (value == null || parameter == null) return false;
+
+            if (value.GetType() == parameter.GetType()) return value.Equals(parameter);
+
+            try
+            {
+                var converted = System.Convert.ChangeType(parameter, value.GetType(), CultureInfo.InvariantCulture);
+                return value.Equals(converted);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Cache un élément quand la valeur source est null. Utile pour les bindings
+    /// vers des sous-objets optionnels (par exemple le HealthScoreDelta d'un diff,
+    /// nul si l'un des deux audits n'a pas calculé de score).
+    /// </summary>
+    public sealed class NullToCollapsedConverter : IValueConverter
+    {
+        public static readonly NullToCollapsedConverter Instance = new NullToCollapsedConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value == null ? Visibility.Collapsed : Visibility.Visible;
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();

@@ -172,7 +172,7 @@ namespace ADReplic.Core.Export
         private static void WriteDomainControllers(IReadOnlyList<DomainControllerInfo> dcs, string path)
         {
             var sb = new StringBuilder();
-            AppendHeader(sb, "HostName", "Domain", "Forest", "Site", "IPAddress", "OSVersion", "IsGC", "IsRODC", "Roles");
+            AppendHeader(sb, "HostName", "Domain", "Forest", "Site", "IPAddress", "OSVersion", "IsGC", "IsRODC", "IsReachable", "Roles");
             if (dcs != null)
             {
                 foreach (var dc in dcs)
@@ -186,6 +186,7 @@ namespace ADReplic.Core.Export
                         dc.OSVersion,
                         dc.IsGlobalCatalog ? "1" : "0",
                         dc.IsReadOnly ? "1" : "0",
+                        dc.IsReachable ? "1" : "0",
                         dc.Roles == null ? "" : string.Join("|", dc.Roles));
                 }
             }

@@ -10,6 +10,9 @@
   <ItemGroup>
     <Reference Include="System.DirectoryServices" />
     <Reference Include="System.DirectoryServices.Protocols" />
+    <!-- JavaScriptSerializer pour le parsing JSON brut dans JsonAuditReader.
+         Assembly natif .NET Framework, pas de dependance NuGet. -->
+    <Reference Include="System.Web.Extensions" />
   </ItemGroup>
 
 </Project>

@@ -40,8 +40,12 @@ namespace ADReplic.Core.Diagnostics
                 await Task.WhenAll(tasks).ConfigureAwait(false);
             }
 
+            // Sévérité d'abord : un échec Critical avec peu de tentatives (ex : ligne
+            // synthétique à 0 tentative d'un DC injoignable) doit rester en tête de
+            // grille plutôt que de couler sous des Warning à fort compteur.
             return bag
-                .OrderByDescending(f => f.ConsecutiveFailureCount)
+                .OrderByDescending(f => (int)f.Severity)
+                .ThenByDescending(f => f.ConsecutiveFailureCount)
                 .ThenBy(f => f.DestinationDc)
                 .ThenBy(f => f.SourceDc)
                 .ToList();
@@ -84,6 +88,9 @@ namespace ADReplic.Core.Diagnostics
             catch (Exception ex)
             {
                 // DC injoignable : on émet un échec "synthétique" pour le signaler.
+                // FirstFailureTime = maintenant faute de mieux (la vraie durée de la
+                // panne n'est pas connaissable puisque le DC ne répond pas) ; le
+                // message explicite lève l'ambiguïté pour l'opérateur.
                 sink.Add(new ReplicationFailureInfo
                 {
                     DestinationDc = dcInfo.HostName,
@@ -91,7 +98,10 @@ namespace ADReplic.Core.Diagnostics
                     FirstFailureTime = DateTime.Now,
                     ConsecutiveFailureCount = 0,
                     LastErrorCode = -1,
-                    LastErrorMessage = "Impossible d'interroger le DC : " + ex.Message,
+                    LastErrorMessage =
+                        "DC injoignable : ses échecs de réplication réels n'ont pas pu être " +
+                        "consultés. Les échecs vus par les autres DC apparaîtront après leurs " +
+                        "prochaines tentatives de réplication. Détail : " + ex.Message,
                     Severity = ReplicationFailureSeverity.Critical
                 });
             }

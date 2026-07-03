@@ -34,7 +34,12 @@ namespace ADReplic.PowerShell.Cmdlets
         [Parameter(HelpMessage = "Nom de la forêt cible (laissez vide pour la forêt courante).")]
         public string ForestName { get; set; }
 
+        [Parameter(HelpMessage = "Audite ce seul DC (FQDN) sans énumérer la forêt. Le rapport reflète ce périmètre réduit.")]
+        [ValidateNotNullOrEmpty]
+        public string DcName { get; set; }
+
         [Parameter(HelpMessage = "Identifiants alternatifs pour interroger une forêt distante.")]
+        [ValidateNotNull]
         [Credential]
         public PSCredential Credential { get; set; } = PSCredential.Empty;
 
@@ -47,8 +52,19 @@ namespace ADReplic.PowerShell.Cmdlets
 
         protected override void ProcessRecord()
         {
-            var context = AuditContextBuilder.Build(ForestName, Credential);
+            var context = AuditContextBuilder.Build(this, ForestName, Credential);
             var resolvedPath = ResolveOutputPath(Path);
+
+            // Crée le dossier de sortie s'il n'existe pas : une tâche planifiée dont
+            // le dossier a été purgé, ou un simple C:\Temp absent, ne doivent pas
+            // faire échouer l'audit après plusieurs minutes de collecte.
+            var outputDirectory = System.IO.Path.GetDirectoryName(resolvedPath);
+            if (!string.IsNullOrEmpty(outputDirectory))
+            {
+                Directory.CreateDirectory(outputDirectory);
+            }
+
+            var singleDcMode = !string.IsNullOrWhiteSpace(DcName);
 
             IReadOnlyList<DomainControllerInfo> dcs;
             IReadOnlyList<ReplicationLink> links;
@@ -59,10 +75,20 @@ namespace ADReplic.PowerShell.Cmdlets
 
             using (var cts = new CancellationTokenSource())
             {
-                WriteVerbose("Découverte des contrôleurs...");
-                var invTask = new DcInventoryProvider().GetAllAsync(context, cts.Token);
-                invTask.Wait(cts.Token);
-                dcs = invTask.Result;
+                if (singleDcMode)
+                {
+                    WriteVerbose($"Audit du DC {DcName} (mode ciblé)...");
+                    var singleTask = new DcInventoryProvider().GetSingleAsync(DcName.Trim(), context, cts.Token);
+                    singleTask.Wait(cts.Token);
+                    dcs = new[] { singleTask.Result };
+                }
+                else
+                {
+                    WriteVerbose("Découverte des contrôleurs...");
+                    var invTask = new DcInventoryProvider().GetAllAsync(context, cts.Token);
+                    invTask.Wait(cts.Token);
+                    dcs = invTask.Result;
+                }
                 WriteVerbose($"  {dcs.Count} DC trouvés.");
 
                 WriteVerbose("Lecture de la topologie...");
@@ -104,7 +130,7 @@ namespace ADReplic.PowerShell.Cmdlets
             var forestName = dcs.Count > 0 ? dcs[0].Forest : ForestName;
             var snapshot = AuditSnapshotBuilder.Build(
                 forestName, dcs, links, topology, failures,
-                isSingleDcMode: false,
+                isSingleDcMode: singleDcMode,
                 dnsHealth: dnsHealth,
                 portHealth: portHealth);
 

@@ -47,6 +47,7 @@ namespace ADReplic.Core.Diagnostics.Issues
         /// <summary>Énumère les détecteurs livrés avec la lib.</summary>
         public static IEnumerable<IIssueDetector> BuildDefaultDetectors()
         {
+            yield return new DcUnreachableDetector();
             yield return new IsolatedDcDetector();
             yield return new ObsoleteOsDetector();
             yield return new SingleDcDomainDetector();
@@ -62,6 +63,8 @@ namespace ADReplic.Core.Diagnostics.Issues
             // Détecteurs Ports (silencieux si PortHealth == null)
             yield return new PortCriticalClosedDetector();
             yield return new PortClosedOrFilteredDetector();
+            // Détection croisée DNS/Ports (silencieux si l'une des deux sondes est absente)
+            yield return new DnsSrvPointsToDeadDcDetector();
         }
     }
 }

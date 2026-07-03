@@ -148,12 +148,13 @@ namespace ADReplic.Core.Export
                 return;
             }
             sb.AppendLine("<table><thead><tr>");
-            sb.AppendLine("<th>Hôte</th><th>Domaine</th><th>Site</th><th>IP</th><th>OS</th><th>GC</th><th>Rôles FSMO</th>");
+            sb.AppendLine("<th></th><th>Hôte</th><th>Domaine</th><th>Site</th><th>IP</th><th>OS</th><th>GC</th><th>Rôles FSMO</th>");
             sb.AppendLine("</tr></thead><tbody>");
             foreach (var dc in dcs.OrderBy(d => d.Domain).ThenBy(d => d.SiteName).ThenBy(d => d.HostName))
             {
                 sb.Append("<tr>");
-                sb.AppendFormat("<td>{0}</td>", Encode(dc.HostName));
+                sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", dc.IsReachable ? "ok" : "fail");
+                sb.AppendFormat("<td>{0}{1}</td>", Encode(dc.HostName), dc.IsReachable ? "" : " <em>(injoignable)</em>");
                 sb.AppendFormat("<td>{0}</td>", Encode(dc.Domain));
                 sb.AppendFormat("<td>{0}</td>", Encode(dc.SiteName));
                 sb.AppendFormat("<td class=\"mono\">{0}</td>", Encode(dc.IPAddress));

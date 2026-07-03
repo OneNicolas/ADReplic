@@ -27,4 +27,10 @@
     <SolidColorBrush x:Key="RowHover"      Color="#21262D" />
     <SolidColorBrush x:Key="RowSelected"   Color="#1F3A5F" />
 
+    <!-- Toast et badge d'alerte (v0.5.0) : fond clair sur sombre pour contraste -->
+    <SolidColorBrush x:Key="ToastBackground"      Color="#2D333B" />
+    <SolidColorBrush x:Key="ToastForeground"      Color="#F0F6FC" />
+    <SolidColorBrush x:Key="AlertBadgeBackground" Color="#F85149" />
+    <SolidColorBrush x:Key="AlertBadgeForeground" Color="#FFFFFF" />
+
 </ResourceDictionary>

@@ -1,6 +1,7 @@
 <Application x:Class="ADReplic.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ADReplic.App.ViewModels"
              StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
         <ResourceDictionary>
@@ -385,18 +386,28 @@
                 </ControlTemplate.Triggers>
             </ControlTemplate>
 
-            <!-- SubmenuItem : item dans un popup (Actualiser, Exporter en CSV, Quitter...) -->
+            <!-- SubmenuItem : item dans un popup (Actualiser, Exporter en CSV, Quitter...).
+                 La 1ère colonne réserve la place du checkmark pour les items IsCheckable=True.
+                 Pour les items non-checkables, la colonne reste mais le ContentPresenter
+                 est invisible — garantit un alignement cohérent dans tout le menu. -->
             <ControlTemplate x:Key="SubmenuItemTemplate" TargetType="MenuItem">
                 <Border x:Name="Bd" Background="Transparent" Padding="8,5" CornerRadius="3">
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="18" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <ContentPresenter Grid.Column="0" ContentSource="Header" RecognizesAccessKey="True"
+                        <TextBlock Grid.Column="0" Text="✓"
+                                   Foreground="{DynamicResource Accent}"
+                                   FontWeight="Bold" FontSize="13"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Visibility="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                        <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True"
                                           TextElement.Foreground="{DynamicResource Foreground}"
                                           VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{TemplateBinding InputGestureText}"
+                        <TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}"
                                    Foreground="{DynamicResource SubtleText}" FontSize="11"
                                    Margin="20,0,0,0" VerticalAlignment="Center" />
                     </Grid>
@@ -412,20 +423,21 @@
             </ControlTemplate>
 
             <!-- SubmenuHeader : item dans un popup qui a lui-même un sous-menu (Thème).
-                 Le Popup vit à côté du Border, dans un Grid parent : un Border ne peut
-                 contenir qu'un seul enfant direct. -->
+                 Même colonne checkmark que SubmenuItem pour préserver l'alignement vertical
+                 quand certains items voisins sont checkables. -->
             <ControlTemplate x:Key="SubmenuHeaderTemplate" TargetType="MenuItem">
                 <Grid>
                     <Border x:Name="Bd" Background="Transparent" Padding="8,5" CornerRadius="3">
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="18" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <ContentPresenter Grid.Column="0" ContentSource="Header" RecognizesAccessKey="True"
+                            <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True"
                                               TextElement.Foreground="{DynamicResource Foreground}"
                                               VerticalAlignment="Center" />
-                            <Path Grid.Column="1" Data="M 0,0 L 4,4 L 0,8 Z"
+                            <Path Grid.Column="2" Data="M 0,0 L 4,4 L 0,8 Z"
                                   Fill="{DynamicResource SubtleText}"
                                   VerticalAlignment="Center" Margin="20,0,4,0" />
                         </Grid>

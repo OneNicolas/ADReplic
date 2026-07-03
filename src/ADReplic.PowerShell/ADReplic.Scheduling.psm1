@@ -126,6 +126,7 @@ function Register-ADRScheduledAudit {
         [switch]$RunAsSystem,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'Credential')]
+        [ValidateNotNull()]
         [PSCredential]$Credential,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'GMSA')]

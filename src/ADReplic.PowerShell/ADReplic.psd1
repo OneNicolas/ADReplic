@@ -19,7 +19,8 @@
         'Get-ADRIssue',
         'Get-ADRDnsHealth',
         'Get-ADRPortHealth',
-        'Export-ADRAudit'
+        'Export-ADRAudit',
+        'Compare-ADRAudit'
     )
     FunctionsToExport = @(
         'Register-ADRScheduledAudit'

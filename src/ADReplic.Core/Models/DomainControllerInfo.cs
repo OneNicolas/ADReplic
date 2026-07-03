@@ -15,6 +15,14 @@ namespace ADReplic.Core.Models
         public string OSVersion { get; set; }
         public bool IsGlobalCatalog { get; set; }
         public bool IsReadOnly { get; set; }
+
+        /// <summary>
+        /// Faux quand toutes les lectures réseau vers ce DC ont échoué pendant la
+        /// découverte (DC éteint, isolé ou NTDS arrêté). Le défaut est true (et pas
+        /// default(bool)) pour que les JSON antérieurs à ce champ, relus via
+        /// JsonAuditReader, ne classent pas tous leurs DCs en injoignables.
+        /// </summary>
+        public bool IsReachable { get; set; } = true;
         public string[] Roles { get; set; }
         public DateTime DiscoveredAt { get; set; }
 

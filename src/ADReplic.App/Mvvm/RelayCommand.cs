@@ -30,6 +30,16 @@ namespace ADReplic.App.Mvvm
         public void Execute(object parameter)
             => _execute(Cast(parameter));
 
+        /// <summary>
+        /// Force WPF à réévaluer le CanExecute de cette commande (et de toutes
+        /// les autres commandes via le CommandManager). À appeler quand une
+        /// propriété qui influence le prédicat change, car WPF ne lie pas
+        /// automatiquement les notifications de propriétés observables à la
+        /// revalidation des commandes.
+        /// </summary>
+        public void RaiseCanExecuteChanged()
+            => CommandManager.InvalidateRequerySuggested();
+
         private static T Cast(object parameter)
         {
             if (parameter == null && default(T) == null) return default;

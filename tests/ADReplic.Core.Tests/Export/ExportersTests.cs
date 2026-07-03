@@ -140,6 +140,30 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
+        public void Html_export_marks_unreachable_dc()
+        {
+            var snapshot = BuildSampleSnapshot();
+            snapshot.DomainControllers[0].IsReachable = false;
+            var target = Path.Combine(_tempDir, "report.html");
+
+            new HtmlAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("(injoignable)", content);
+        }
+
+        [Fact]
+        public void Html_export_does_not_mark_reachable_dc()
+        {
+            var target = Path.Combine(_tempDir, "report.html");
+
+            new HtmlAuditExporter().Export(BuildSampleSnapshot(), target);
+
+            var content = File.ReadAllText(target);
+            Assert.DoesNotContain("(injoignable)", content);
+        }
+
+        [Fact]
         public void Json_export_writes_parseable_json()
         {
             var target = Path.Combine(_tempDir, "audit.json");

@@ -18,6 +18,11 @@ namespace ADReplic.Core.Diagnostics.Issues
             {
                 if (dc == null || string.IsNullOrEmpty(dc.HostName)) continue;
 
+                // DC injoignable : OSVersion est null parce que la lecture réseau a
+                // échoué, pas parce que l'OS est inconnu. Un OS_UNKNOWN serait un
+                // signal trompeur — DC_UNREACHABLE (Critical) prend le relais.
+                if (!dc.IsReachable) continue;
+
                 var level = OsObsolescenceClassifier.Classify(dc.OSVersion);
                 var issue = BuildIssue(dc, level);
                 if (issue != null) yield return issue;

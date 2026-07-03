@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows.Threading;
 using ADReplic.App.Mvvm;
 using ADReplic.Core.Abstractions;
+using ADReplic.Core.Comparison;
 using ADReplic.Core.Diagnostics;
 using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Discovery;
@@ -14,6 +18,7 @@ using ADReplic.Core.Export;
 using ADReplic.Core.Health.Dns;
 using ADReplic.Core.Health.Ports;
 using ADReplic.Core.Models;
+using ADReplic.Core.Monitoring;
 using ADReplic.Core.Replication;
 using ADReplic.Core.Topology;
 
@@ -29,6 +34,13 @@ namespace ADReplic.App.ViewModels
         private readonly IPortHealthProbe _portHealthProbe;
         private readonly IReadOnlyDictionary<string, IAuditExporter> _exporters;
 
+        // === Monitoring (v0.5.0) ============================================
+        private readonly ISnapshotStore _snapshotStore;
+        private readonly AuditHistory _scoreHistory;
+        private readonly MonitoringSettingsStore _settingsStore;
+        private readonly DispatcherTimer _autoRefreshTimer;
+        private AuditSnapshot _lastSnapshotForAlert;
+
         private string _statusMessage;
         private string _forestName;
         private string _targetForestName;
@@ -41,6 +53,13 @@ namespace ADReplic.App.ViewModels
         private DnsHealthResult _lastDnsHealth;
         private PortHealthResult _lastPortHealth;
         private HealthScore _healthScore;
+
+        // === Monitoring state ===============================================
+        private bool _isAutoRefreshEnabled;
+        private int _autoRefreshIntervalMinutes;
+        private bool _hasPendingAlert;
+        private string _pendingAlertSummary;
+        private IReadOnlyList<SignificantChange> _lastSignificantChanges;
 
         public MainViewModel()
             : this(new DcInventoryProvider(), new ReplicationProbe(), new ReplicationFailureProbe(),
@@ -77,6 +96,23 @@ namespace ADReplic.App.ViewModels
             Issues = new ObservableCollection<DetectedIssue>();
             DnsChecks = new ObservableCollection<DnsCheckResult>();
             PortChecks = new ObservableCollection<PortCheckResult>();
+            ScoreHistoryEntries = new ObservableCollection<ScoreHistoryEntry>();
+
+            // === Monitoring : init des composants Core ======================
+            _snapshotStore = new SnapshotStore();
+            _scoreHistory = new AuditHistory();
+            _settingsStore = new MonitoringSettingsStore();
+            var settings = _settingsStore.Load();
+            _autoRefreshIntervalMinutes = settings.IntervalMinutes;
+            _autoRefreshTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMinutes(_autoRefreshIntervalMinutes)
+            };
+            _autoRefreshTimer.Tick += OnAutoRefreshTick;
+            // Le toggle reste OFF par défaut au démarrage, peu importe l'état précédent
+            // (décision actée : éviter qu'un audit non sollicité parte au lancement).
+
+            Compare = new CompareViewModel();
 
             RefreshCommand = new AsyncRelayCommand(RefreshAllAsync, () => !IsBusy);
             ExportCommand = new RelayCommand<string>(OnExport, _ => !IsBusy && HasData);
@@ -84,9 +120,16 @@ namespace ADReplic.App.ViewModels
             ResetTargetCommand = new RelayCommand<object>(_ => ResetTarget(), _ => !IsBusy);
             AuditSingleDcCommand = new RelayCommand<DomainControllerInfo>(OnAuditSingleDc, _ => !IsBusy);
 
+            OpenCompareDialogCommand    = new RelayCommand<object>(_ => OnOpenCompareDialog?.Invoke());
+            ToggleAutoRefreshCommand    = new RelayCommand<object>(_ => IsAutoRefreshEnabled = !IsAutoRefreshEnabled);
+            OpenSnapshotsFolderCommand  = new RelayCommand<object>(_ => OpenSnapshotsFolder());
+            AcknowledgeAlertCommand     = new RelayCommand<object>(_ => AcknowledgeAlert(), _ => HasPendingAlert);
+            SetAutoRefreshIntervalCommand = new RelayCommand<object>(SetAutoRefreshInterval);
+
             StatusMessage = "Prêt — cliquez sur Actualiser pour lancer un audit.";
         }
 
+        // === Observable collections (existantes) ============================
         public ObservableCollection<DomainControllerInfo> DomainControllers { get; }
         public ObservableCollection<ReplicationLink> ReplicationLinks { get; }
         public ObservableCollection<ReplicationFailureInfo> ReplicationFailures { get; }
@@ -96,16 +139,36 @@ namespace ADReplic.App.ViewModels
         public ObservableCollection<DnsCheckResult> DnsChecks { get; }
         public ObservableCollection<PortCheckResult> PortChecks { get; }
 
+        // === Observable collections (nouvelles v0.5.0) ======================
+        public ObservableCollection<ScoreHistoryEntry> ScoreHistoryEntries { get; }
+
+        // === Commandes (existantes) =========================================
         public ICommand RefreshCommand { get; }
         public ICommand ExportCommand { get; }
         public ICommand EditCredentialsCommand { get; }
         public ICommand ResetTargetCommand { get; }
         public ICommand AuditSingleDcCommand { get; }
 
-        public Func<string, string, string> SaveFilePicker { get; set; }
+        // === Commandes (nouvelles v0.5.0) ===================================
+        public ICommand OpenCompareDialogCommand { get; }
+        public ICommand ToggleAutoRefreshCommand { get; }
+        public ICommand OpenSnapshotsFolderCommand { get; }
+        public ICommand AcknowledgeAlertCommand { get; }
+        public ICommand SetAutoRefreshIntervalCommand { get; }
 
-        /// <summary>Délégué appelé par la View pour ouvrir le dialog credentials.</summary>
+        // === Sous-VMs =======================================================
+        public CompareViewModel Compare { get; }
+
+        // === Délégués View -> VM (existant + nouveau) =======================
+        public Func<string, string, string> SaveFilePicker { get; set; }
         public Action OnEditCredentials { get; set; }
+        public Action OnOpenCompareDialog { get; set; }
+        public Action OnShowAlert { get; set; }
+
+        /// <summary>Intervalles proposés dans le menu (en minutes).</summary>
+        public static IReadOnlyList<int> AutoRefreshIntervalOptions { get; } = new[] { 5, 15, 30, 60 };
+
+        // === Props (existantes) =============================================
 
         public string StatusMessage
         {
@@ -113,14 +176,12 @@ namespace ADReplic.App.ViewModels
             set => SetProperty(ref _statusMessage, value);
         }
 
-        /// <summary>Forêt effectivement découverte lors du dernier audit.</summary>
         public string ForestName
         {
             get => _forestName;
             set => SetProperty(ref _forestName, value);
         }
 
-        /// <summary>Cible saisie par l'utilisateur (vide = forêt courante).</summary>
         public string TargetForestName
         {
             get => _targetForestName;
@@ -133,11 +194,6 @@ namespace ADReplic.App.ViewModels
             }
         }
 
-        /// <summary>
-        /// DC à cibler exclusivement. Vide = audit complet de la forêt.
-        /// Quand renseigné, l'inventaire ne ramene que ce DC et les détecteurs
-        /// IsolatedDc / SingleDcDomain sont désactivés pour éviter les faux positifs.
-        /// </summary>
         public string TargetDcHostName
         {
             get => _targetDcHostName;
@@ -169,7 +225,6 @@ namespace ADReplic.App.ViewModels
         public bool HasAlternateCredentials =>
             !string.IsNullOrEmpty(_credentialUserName) && !string.IsNullOrEmpty(_credentialPassword);
 
-        /// <summary>Texte court pour le header : forêt cible + DC ciblé + utilisateur si alt creds.</summary>
         public string TargetSummary
         {
             get
@@ -190,7 +245,6 @@ namespace ADReplic.App.ViewModels
 
         public bool HasData => DomainControllers.Count > 0 || ReplicationLinks.Count > 0;
 
-        /// <summary>Score de santé du dernier audit (null tant qu'aucun audit n'a tourné).</summary>
         public HealthScore HealthScore
         {
             get => _healthScore;
@@ -205,7 +259,66 @@ namespace ADReplic.App.ViewModels
 
         public bool HasHealthScore => _healthScore != null;
 
-        /// <summary>Appelé par la View après fermeture du dialog credentials.</summary>
+        // === Props (nouvelles v0.5.0) =======================================
+
+        public bool IsAutoRefreshEnabled
+        {
+            get => _isAutoRefreshEnabled;
+            set
+            {
+                if (SetProperty(ref _isAutoRefreshEnabled, value))
+                {
+                    if (value) StartAutoRefresh();
+                    else       StopAutoRefresh();
+                }
+            }
+        }
+
+        public int AutoRefreshIntervalMinutes
+        {
+            get => _autoRefreshIntervalMinutes;
+            set
+            {
+                if (value < 1) return;
+                if (SetProperty(ref _autoRefreshIntervalMinutes, value))
+                {
+                    ApplyIntervalChange();
+                    PersistSettings();
+                }
+            }
+        }
+
+        public bool HasPendingAlert
+        {
+            get => _hasPendingAlert;
+            private set => SetProperty(ref _hasPendingAlert, value);
+        }
+
+        public string PendingAlertSummary
+        {
+            get => _pendingAlertSummary;
+            private set => SetProperty(ref _pendingAlertSummary, value);
+        }
+
+        public IReadOnlyList<SignificantChange> LastSignificantChanges
+        {
+            get => _lastSignificantChanges;
+            private set
+            {
+                if (SetProperty(ref _lastSignificantChanges, value))
+                {
+                    RaisePropertyChanged(nameof(HasSignificantChanges));
+                }
+            }
+        }
+
+        public bool HasSignificantChanges =>
+            _lastSignificantChanges != null && _lastSignificantChanges.Count > 0;
+
+        public string SnapshotsFolderPath => _snapshotStore?.BaseDirectory;
+
+        // === Comportement (existant) ========================================
+
         public void ApplyCredentials(string userName, string password)
         {
             _credentialPassword = password;
@@ -262,11 +375,10 @@ namespace ADReplic.App.ViewModels
             ForestName = null;
             HealthScore = null;
 
-            // Snapshot du mode au début de l'audit : si l'utilisateur modifie
-            // le champ pendant la collecte, on garde la cohérence avec ce qui
-            // a réellement été interrogé (et donc avec ce qui sera exporté).
             var singleDcMode = IsSingleDcMode;
             var targetDc = _targetDcHostName;
+
+            AuditSnapshot finalSnapshot = null;
 
             try
             {
@@ -305,8 +417,6 @@ namespace ADReplic.App.ViewModels
                     var failures = await _failureProbe.GetFailuresAsync(dcs, context, cts.Token);
                     foreach (var f in failures) ReplicationFailures.Add(f);
 
-                    // Les sondes DNS et Ports sont indépendantes : on les lance en parallèle
-                    // pour gagner du temps. Aucun état partagé entre elles.
                     StatusMessage = "Sondage DNS et réseau...";
                     var dnsTask = ProbeDnsAsync(dcs, cts.Token);
                     var portTask = _portHealthProbe.ProbeAsync(
@@ -321,9 +431,6 @@ namespace ADReplic.App.ViewModels
 
                     StatusMessage = BuildFinalStatus(dcs.Count, links, failures);
 
-                    // Construction du snapshot complet pour calculer le score : on
-                    // réutilise la même logique que les exports pour garantir la cohérence
-                    // entre ce qui s'affiche en haut et ce qui sera dans le rapport.
                     var snapshot = AuditSnapshotBuilder.Build(
                         ForestName, dcs, links, _topology, failures, singleDcMode,
                         _lastDnsHealth, _lastPortHealth);
@@ -331,6 +438,7 @@ namespace ADReplic.App.ViewModels
                     foreach (var issue in snapshot.Issues) Issues.Add(issue);
 
                     _lastAuditWasSingleDc = singleDcMode;
+                    finalSnapshot = snapshot;
                 }
             }
             catch (OperationCanceledException)
@@ -345,13 +453,16 @@ namespace ADReplic.App.ViewModels
             {
                 IsBusy = false;
             }
+
+            // Hook v0.5.0 : historique + (si auto-refresh) persistence et diff vs N-1.
+            // Le hook est volontairement hors du try/catch : son échec ne doit pas
+            // contaminer un audit par ailleurs réussi.
+            if (finalSnapshot != null)
+            {
+                HandlePostRefresh(finalSnapshot);
+            }
         }
 
-        /// <summary>
-        /// Lance la sonde DNS avec dérivation du domaine principal depuis le premier DC.
-        /// Si l'inventaire est vide ou que le DC n'a pas de domaine déclaré, retourne null
-        /// (la GUI/exports gèrent gracieusement l'absence de sonde).
-        /// </summary>
         private async Task<DnsHealthResult> ProbeDnsAsync(
             IReadOnlyList<DomainControllerInfo> dcs, CancellationToken cancellationToken)
         {
@@ -413,6 +524,168 @@ namespace ADReplic.App.ViewModels
             }
             var failureLabel = failures.Count > 0 ? $", {failures.Count} échec(s) actifs" : "";
             return $"{dcCount} DC, {links.Count} liens — {failing} en échec, {warning} en avertissement{failureLabel}.";
+        }
+
+        // === Monitoring (v0.5.0) ============================================
+
+        private void HandlePostRefresh(AuditSnapshot snapshot)
+        {
+            if (snapshot?.HealthScore != null)
+            {
+                AddToHistory(ScoreHistoryEntry.From(snapshot.HealthScore));
+            }
+
+            // Hors mode auto-refresh : on enregistre juste l'historique en mémoire.
+            // Pas d'écriture disque, pas de diff, pas d'alerte. L'utilisateur en
+            // mode manuel utilise le bouton "Comparer..." pour confronter 2 audits.
+            if (!_isAutoRefreshEnabled) return;
+
+            try
+            {
+                _snapshotStore.Save(snapshot);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Snapshot non sauvegardé : " + ex.Message;
+            }
+
+            if (_lastSnapshotForAlert != null)
+            {
+                try
+                {
+                    var diff = AuditDiffer.Compute(_lastSnapshotForAlert, snapshot);
+                    var changes = SignificantChangeDetector.Detect(diff);
+                    if (changes.Count > 0)
+                    {
+                        LastSignificantChanges = changes;
+                        PendingAlertSummary = BuildAlertSummary(changes);
+                        HasPendingAlert = true;
+                        OnShowAlert?.Invoke();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = "Diff post-refresh impossible : " + ex.Message;
+                }
+            }
+
+            _lastSnapshotForAlert = snapshot;
+        }
+
+        private void AddToHistory(ScoreHistoryEntry entry)
+        {
+            _scoreHistory.Add(entry);
+            ScoreHistoryEntries.Add(entry);
+
+            // Garder la collection observable alignée sur la capacité du ring buffer.
+            while (ScoreHistoryEntries.Count > _scoreHistory.Capacity)
+            {
+                ScoreHistoryEntries.RemoveAt(0);
+            }
+        }
+
+        private static string BuildAlertSummary(IReadOnlyList<SignificantChange> changes)
+        {
+            if (changes == null || changes.Count == 0) return string.Empty;
+            if (changes.Count == 1) return changes[0].Title;
+            return $"{changes.Count} changements significatifs détectés (premier : {changes[0].Title})";
+        }
+
+        private void StartAutoRefresh()
+        {
+            _autoRefreshTimer.Interval = TimeSpan.FromMinutes(_autoRefreshIntervalMinutes);
+            _autoRefreshTimer.Start();
+            StatusMessage = $"Surveillance activée — passe toutes les {_autoRefreshIntervalMinutes} min.";
+        }
+
+        private void StopAutoRefresh()
+        {
+            _autoRefreshTimer.Stop();
+            _lastSnapshotForAlert = null;
+            StatusMessage = "Surveillance désactivée.";
+        }
+
+        private void OnAutoRefreshTick(object sender, EventArgs e)
+        {
+            // Anti-marteau : si l'audit précédent n'est pas encore terminé,
+            // on saute cette passe plutôt que d'enfiler les requêtes AD.
+            if (IsBusy) return;
+            if (RefreshCommand.CanExecute(null)) RefreshCommand.Execute(null);
+        }
+
+        private void ApplyIntervalChange()
+        {
+            _autoRefreshTimer.Interval = TimeSpan.FromMinutes(_autoRefreshIntervalMinutes);
+            // Si actif, on redémarre proprement pour appliquer immédiatement le nouvel intervalle.
+            if (_autoRefreshTimer.IsEnabled)
+            {
+                _autoRefreshTimer.Stop();
+                _autoRefreshTimer.Start();
+            }
+        }
+
+        private void SetAutoRefreshInterval(object parameter)
+        {
+            // Le CommandParameter XAML est typé string par défaut. On accepte aussi int
+            // pour les appels code-behind / tests, et on parse en culture invariante.
+            if (parameter is int direct)
+            {
+                AutoRefreshIntervalMinutes = direct;
+                return;
+            }
+            if (parameter == null) return;
+            if (int.TryParse(
+                    parameter.ToString(),
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var parsed))
+            {
+                AutoRefreshIntervalMinutes = parsed;
+            }
+        }
+
+        private void PersistSettings()
+        {
+            try
+            {
+                _settingsStore.Save(new MonitoringSettings
+                {
+                    IntervalMinutes = _autoRefreshIntervalMinutes
+                });
+            }
+            catch (Exception ex)
+            {
+                // Pas critique : on continue, on aura simplement les valeurs par defaut
+                // au prochain demarrage.
+                StatusMessage = "Préférences non sauvegardées : " + ex.Message;
+            }
+        }
+
+        private void AcknowledgeAlert()
+        {
+            HasPendingAlert = false;
+            // On laisse LastSignificantChanges intact : l'utilisateur peut toujours
+            // consulter ce qui a déclenché l'alerte tant qu'un nouveau cycle ne l'a
+            // pas écrasé.
+        }
+
+        private void OpenSnapshotsFolder()
+        {
+            var folder = _snapshotStore?.BaseDirectory;
+            if (string.IsNullOrEmpty(folder)) return;
+            try
+            {
+                if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = folder,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Impossible d'ouvrir le dossier : " + ex.Message;
+            }
         }
     }
 }

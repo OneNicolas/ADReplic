@@ -37,6 +37,7 @@ namespace ADReplic.PowerShell.Cmdlets
         public int TimeoutSeconds { get; set; } = 2;
 
         [Parameter(HelpMessage = "Identifiants alternatifs pour interroger une forêt distante (utilisés uniquement pour la découverte).")]
+        [ValidateNotNull]
         [Credential]
         public PSCredential Credential { get; set; } = PSCredential.Empty;
 
@@ -83,7 +84,7 @@ namespace ADReplic.PowerShell.Cmdlets
                     .ToList();
             }
 
-            var context = AuditContextBuilder.Build(ForestName, Credential);
+            var context = AuditContextBuilder.Build(this, ForestName, Credential);
             WriteVerbose("Découverte des contrôleurs de la forêt...");
             var invTask = _inventoryProvider.GetAllAsync(context, token);
             invTask.Wait(token);

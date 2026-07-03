@@ -19,424 +19,835 @@
         <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
     </Window.InputBindings>
 
-    <DockPanel LastChildFill="True">
+    <!-- Grid racine : permet de superposer le toast en overlay au-dessus du DockPanel. -->
+    <Grid>
 
-        <!-- ====================================================================
-             Barre de menu (Fichier, Outils, Aide)
-             Le Foreground est appliqué explicitement sur les items racines
-             (visibles sur la barre) pour qu'ils suivent le thème, sans toucher
-             aux sous-menus qui restent gérés par Windows.
-             ==================================================================== -->
-        <Menu DockPanel.Dock="Top" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
-            <MenuItem Header="_Fichier" Foreground="{DynamicResource Foreground}">
-                <MenuItem Header="_Actualiser"        Command="{Binding RefreshCommand}"
-                          InputGestureText="F5" />
-                <Separator />
-                <MenuItem Header="Exporter en _CSV"   Command="{Binding ExportCommand}" CommandParameter="CSV" />
-                <MenuItem Header="Exporter en _JSON"  Command="{Binding ExportCommand}" CommandParameter="JSON" />
-                <MenuItem Header="Exporter en _HTML"  Command="{Binding ExportCommand}" CommandParameter="HTML" />
-                <Separator />
-                <MenuItem Header="_Quitter" Click="OnQuitClick" InputGestureText="Alt+F4" />
-            </MenuItem>
-            <MenuItem Header="_Outils" Foreground="{DynamicResource Foreground}">
-                <MenuItem Header="_Identifiants alternatifs…" Command="{Binding EditCredentialsCommand}" />
-                <MenuItem Header="_Réinitialiser la cible"    Command="{Binding ResetTargetCommand}" />
-                <Separator />
-                <MenuItem Header="_Thème">
-                    <MenuItem Header="_Clair"  Click="OnThemeLightClick" />
-                    <MenuItem Header="_Sombre" Click="OnThemeDarkClick" />
+        <DockPanel LastChildFill="True">
+
+            <!-- ====================================================================
+                 Barre de menu (Fichier, Outils, Aide)
+                 ==================================================================== -->
+            <Menu DockPanel.Dock="Top" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
+                <MenuItem Header="_Fichier" Foreground="{DynamicResource Foreground}">
+                    <MenuItem Header="_Actualiser"        Command="{Binding RefreshCommand}"
+                              InputGestureText="F5" />
+                    <Separator />
+                    <MenuItem Header="Exporter en _CSV"   Command="{Binding ExportCommand}" CommandParameter="CSV" />
+                    <MenuItem Header="Exporter en _JSON"  Command="{Binding ExportCommand}" CommandParameter="JSON" />
+                    <MenuItem Header="Exporter en _HTML"  Command="{Binding ExportCommand}" CommandParameter="HTML" />
+                    <Separator />
+                    <MenuItem Header="C_omparer deux audits…" Command="{Binding OpenCompareDialogCommand}" />
+                    <Separator />
+                    <MenuItem Header="_Quitter" Click="OnQuitClick" InputGestureText="Alt+F4" />
                 </MenuItem>
-            </MenuItem>
-            <MenuItem Header="_Aide" Foreground="{DynamicResource Foreground}">
-                <MenuItem Header="_Guide de démarrage"     Click="OnHelpClick" />
-                <MenuItem Header="_Documentation en ligne" Click="OnDocsClick" />
-                <Separator />
-                <MenuItem Header="À _propos d'ADReplic…"   Click="OnAboutClick" />
-            </MenuItem>
-        </Menu>
+                <MenuItem Header="_Outils" Foreground="{DynamicResource Foreground}">
+                    <MenuItem Header="_Identifiants alternatifs…" Command="{Binding EditCredentialsCommand}" />
+                    <MenuItem Header="_Réinitialiser la cible"    Command="{Binding ResetTargetCommand}" />
+                    <Separator />
+                    <MenuItem Header="_Surveillance">
+                        <MenuItem Header="_Activer la surveillance"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding IsAutoRefreshEnabled, Mode=TwoWay}" />
+                        <MenuItem Header="_Intervalle">
+                            <MenuItem Header="_5 minutes"  IsCheckable="True"
+                                      IsChecked="{Binding AutoRefreshIntervalMinutes, Mode=OneWay, Converter={x:Static vm:EqualsConverter.Instance}, ConverterParameter=5}"
+                                      Command="{Binding SetAutoRefreshIntervalCommand}" CommandParameter="5" />
+                            <MenuItem Header="_15 minutes" IsCheckable="True"
+                                      IsChecked="{Binding AutoRefreshIntervalMinutes, Mode=OneWay, Converter={x:Static vm:EqualsConverter.Instance}, ConverterParameter=15}"
+                                      Command="{Binding SetAutoRefreshIntervalCommand}" CommandParameter="15" />
+                            <MenuItem Header="_30 minutes" IsCheckable="True"
+                                      IsChecked="{Binding AutoRefreshIntervalMinutes, Mode=OneWay, Converter={x:Static vm:EqualsConverter.Instance}, ConverterParameter=30}"
+                                      Command="{Binding SetAutoRefreshIntervalCommand}" CommandParameter="30" />
+                            <MenuItem Header="_60 minutes" IsCheckable="True"
+                                      IsChecked="{Binding AutoRefreshIntervalMinutes, Mode=OneWay, Converter={x:Static vm:EqualsConverter.Instance}, ConverterParameter=60}"
+                                      Command="{Binding SetAutoRefreshIntervalCommand}" CommandParameter="60" />
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Ouvrir le _dossier des snapshots…"
+                                  Command="{Binding OpenSnapshotsFolderCommand}" />
+                    </MenuItem>
+                    <Separator />
+                    <MenuItem Header="_Thème">
+                        <MenuItem Header="_Clair"  Click="OnThemeLightClick" />
+                        <MenuItem Header="_Sombre" Click="OnThemeDarkClick" />
+                    </MenuItem>
+                </MenuItem>
+                <MenuItem Header="_Aide" Foreground="{DynamicResource Foreground}">
+                    <MenuItem Header="_Guide de démarrage"     Click="OnHelpClick" />
+                    <MenuItem Header="_Documentation en ligne" Click="OnDocsClick" />
+                    <Separator />
+                    <MenuItem Header="À _propos d'ADReplic…"   Click="OnAboutClick" />
+                </MenuItem>
+            </Menu>
 
-        <!-- ====================================================================
-             Header : titre + badge centré + actions + cible
-             ==================================================================== -->
-        <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceElevated}"
-                BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1"
-                Padding="24,16">
-            <StackPanel>
+            <!-- ====================================================================
+                 Header : titre + badges + actions + cible
+                 ==================================================================== -->
+            <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceElevated}"
+                    BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1"
+                    Padding="24,16">
+                <StackPanel>
 
-                <!-- Ligne 1 : 3 colonnes (titre / badge centré / actions) -->
+                    <!-- Ligne 1 : titre à gauche, actions + badge alerte à droite.
+                         Le badge de score a été déplacé dans la status bar (v0.5.0) pour
+                         libérer le header devenu trop chargé quand le Summary du score
+                         devenait verbeux. -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Logo + titre, aligné à gauche -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="{StaticResource AppIcon}" Width="36" Height="36" Margin="0,0,12,0" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="ADReplic" FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Foreground}" />
+                                <TextBlock Text="{Binding ForestName, StringFormat='Forêt découverte : {0}', TargetNullValue='Forêt : (non découverte)'}"
+                                           Foreground="{DynamicResource SubtleText}" FontSize="12" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Badge alerte + actions à droite -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                    VerticalAlignment="Center" HorizontalAlignment="Right">
+
+                            <!-- Badge alerte clignotant, visible si HasPendingAlert -->
+                            <Border x:Name="HeaderAlertBadge"
+                                    Padding="10,6" CornerRadius="4"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0"
+                                    Cursor="Hand"
+                                    Background="{DynamicResource AlertBadgeBackground}"
+                                    Visibility="{Binding HasPendingAlert, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
+                                    ToolTip="{Binding PendingAlertSummary}">
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick"
+                                                  Command="{Binding AcknowledgeAlertCommand}" />
+                                </Border.InputBindings>
+                                <Border.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 From="1" To="0.5" Duration="0:0:0.8" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Border.Triggers>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="(!)" FontWeight="Bold" FontSize="14"
+                                               Foreground="{DynamicResource AlertBadgeForeground}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="Alerte" FontWeight="SemiBold" FontSize="12"
+                                               Foreground="{DynamicResource AlertBadgeForeground}"
+                                               VerticalAlignment="Center" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Button x:Name="ExportButton" Content="Exporter ▾" Margin="0,0,10,0"
+                                    Click="OnExportButtonClick">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Tableurs (CSV)" Command="{Binding ExportCommand}" CommandParameter="CSV" />
+                                        <MenuItem Header="Données (JSON)" Command="{Binding ExportCommand}" CommandParameter="JSON" />
+                                        <MenuItem Header="Rapport (HTML)" Command="{Binding ExportCommand}" CommandParameter="HTML" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <Button Content="Actualiser" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding RefreshCommand}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Ligne 2 -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="280" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="Forêt cible" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SubtleText}" FontSize="12"
+                                   FontWeight="SemiBold" Margin="0,0,10,0" />
+
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding TargetForestName, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Laisser vide pour interroger la forêt courante de cette machine." />
+
+                        <TextBlock Grid.Column="2" Text="DC cible" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SubtleText}" FontSize="12"
+                                   FontWeight="SemiBold" Margin="18,0,10,0" />
+
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding TargetDcHostName, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Mode DC seul : n'auditer qu'un contrôleur précis (FQDN). Laisser vide pour un audit complet." />
+
+                        <TextBlock Grid.Column="4" Text="{Binding TargetSummary}" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SubtleText}" FontSize="12"
+                                   Margin="14,0,14,0" TextTrimming="CharacterEllipsis" />
+
+                        <Button Grid.Column="5" Content="Identifiants…" Margin="0,0,8,0"
+                                Command="{Binding EditCredentialsCommand}"
+                                ToolTip="Définir des identifiants alternatifs pour l'audit." />
+
+                        <Button Grid.Column="6" Content="Réinitialiser"
+                                Command="{Binding ResetTargetCommand}"
+                                ToolTip="Revenir à la forêt courante et aux identifiants Windows." />
+                    </Grid>
+
+                </StackPanel>
+            </Border>
+
+            <!-- ====================================================================
+                 Footer / status bar (v0.5.0) :
+                 - Indicateur d'activité (vert/bleu)
+                 - Badge score compact, cliquable pour ouvrir l'historique
+                 - Status message textuel
+                 - Badge alerte compact à droite (en plus du header)
+                 ==================================================================== -->
+            <Border DockPanel.Dock="Bottom" Background="{DynamicResource SurfaceElevated}"
+                    BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0"
+                    Padding="24,8">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />  <!-- Indicateur d'activité -->
+                        <ColumnDefinition Width="Auto" />  <!-- Badge score -->
+                        <ColumnDefinition Width="*" />     <!-- Status message -->
+                        <ColumnDefinition Width="Auto" />  <!-- Badge alerte -->
                     </Grid.ColumnDefinitions>
 
-                    <!-- Logo + titre, aligné à gauche -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Image Source="{StaticResource AppIcon}" Width="36" Height="36" Margin="0,0,12,0" />
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="ADReplic" FontSize="18" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Foreground}" />
-                            <TextBlock Text="{Binding ForestName, StringFormat='Forêt découverte : {0}', TargetNullValue='Forêt : (non découverte)'}"
-                                       Foreground="{DynamicResource SubtleText}" FontSize="12" Margin="0,2,0,0" />
-                        </StackPanel>
-                    </StackPanel>
+                    <!-- Indicateur d'activité (vert / bleu) -->
+                    <Grid Grid.Column="0" VerticalAlignment="Center">
+                        <Ellipse Width="8" Height="8" Margin="0,0,10,0"
+                                 Fill="{DynamicResource Success}"
+                                 Visibility="{Binding IsBusy, Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                        <Ellipse Width="8" Height="8" Margin="0,0,10,0"
+                                 Fill="{DynamicResource Accent}"
+                                 Visibility="{Binding IsBusy, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                    </Grid>
 
-                    <!-- Badge de santé : centré sur la fenêtre (1 ligne) -->
-                    <Border Grid.Column="1" Padding="14,8" CornerRadius="6"
-                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                    <!-- Badge score compact (cliquable -> popover historique).
+                         Placé ici depuis v0.5.0. Le Summary complet est dans le tooltip
+                         pour ne pas surcharger la status bar. -->
+                    <Border Grid.Column="1" x:Name="ScoreBadge"
+                            Padding="10,3" CornerRadius="4"
+                            Margin="0,0,14,0"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            MouseLeftButtonUp="OnScoreBadgeClick"
                             Background="{Binding HealthScore.Level, Converter={x:Static vm:HealthLevelToBrushConverter.Instance}}"
-                            Visibility="{Binding HasHealthScore, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                            Visibility="{Binding HasHealthScore, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
+                            ToolTip="{Binding HealthScore.Summary}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding HealthScore.Value, StringFormat='{}{0}/100'}"
-                                       Foreground="White" FontSize="16" FontWeight="Bold"
+                                       Foreground="White" FontWeight="Bold" FontSize="12"
                                        VerticalAlignment="Center" />
                             <TextBlock Text="{Binding HealthScore.Label}"
-                                       Foreground="White" FontSize="12" Opacity="0.92"
-                                       VerticalAlignment="Center" Margin="10,0,0,0" />
-                            <TextBlock Text="—" Foreground="White" Opacity="0.6"
-                                       VerticalAlignment="Center" Margin="10,0,10,0" />
-                            <TextBlock Text="{Binding HealthScore.Summary}"
-                                       Foreground="White" FontSize="12" Opacity="0.92"
-                                       VerticalAlignment="Center" />
+                                       Foreground="White" Opacity="0.92" FontSize="11"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
                     </Border>
 
-                    <!-- Actions à droite -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal"
-                                VerticalAlignment="Center" HorizontalAlignment="Right">
-                        <Button x:Name="ExportButton" Content="Exporter ▾" Margin="0,0,10,0"
-                                Click="OnExportButtonClick">
-                            <Button.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Tableurs (CSV)" Command="{Binding ExportCommand}" CommandParameter="CSV" />
-                                    <MenuItem Header="Données (JSON)" Command="{Binding ExportCommand}" CommandParameter="JSON" />
-                                    <MenuItem Header="Rapport (HTML)" Command="{Binding ExportCommand}" CommandParameter="HTML" />
-                                </ContextMenu>
-                            </Button.ContextMenu>
-                        </Button>
-                        <Button Content="Actualiser" Style="{StaticResource PrimaryButton}"
-                                Command="{Binding RefreshCommand}" />
-                    </StackPanel>
+                    <!-- Popup historique des scores (placé ici pour rester proche du badge).
+                         Placement=Top : s'ouvre AU-DESSUS du badge, sinon il sortirait
+                         sous la fenêtre puisque la status bar est en bas. -->
+                    <Popup x:Name="HistoryPopup"
+                           PlacementTarget="{Binding ElementName=ScoreBadge}"
+                           Placement="Top"
+                           StaysOpen="False"
+                           AllowsTransparency="True"
+                           PopupAnimation="Fade">
+                        <Border Background="{DynamicResource SurfaceElevated}"
+                                BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                                Padding="14" CornerRadius="6"
+                                MinWidth="320" Margin="8,8,8,8">
+                            <Border.Effect>
+                                <DropShadowEffect Color="Black" Opacity="0.25"
+                                                  BlurRadius="12" ShadowDepth="2" />
+                            </Border.Effect>
+                            <StackPanel>
+                                <TextBlock Text="Historique des scores"
+                                           FontWeight="SemiBold" FontSize="13"
+                                           Foreground="{DynamicResource Foreground}"
+                                           Margin="0,0,0,8" />
+                                <Border Background="{DynamicResource SurfaceAlt}"
+                                        BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                                        CornerRadius="3" Padding="6" Height="120">
+                                    <ItemsControl ItemsSource="{Binding ScoreHistoryEntries}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Width="6"
+                                                        Height="{Binding OverallScore}"
+                                                        Margin="1,0,0,0"
+                                                        VerticalAlignment="Bottom"
+                                                        Background="{Binding Level, Converter={x:Static vm:HealthLevelToBrushConverter.Instance}}">
+                                                            <Border.ToolTip>
+                                                                <TextBlock>
+                                                                    <Run Text="{Binding CapturedAt, StringFormat='{}{0:dd/MM HH:mm}', Mode=OneWay}" />
+                                                                    <LineBreak />
+                                                                    <Run Text="Score : " />
+                                                                    <Run Text="{Binding OverallScore, Mode=OneWay}" />
+                                                                    <Run Text="/100" />
+                                                                </TextBlock>
+                                                            </Border.ToolTip>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="{DynamicResource SubtleText}"
+                                           FontSize="11">
+                                    <Run Text="50 dernières captures (axe Y : 0 à 100)." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <TextBlock Grid.Column="2" Text="{Binding StatusMessage}"
+                               Foreground="{DynamicResource SubtleText}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <!-- Badge alerte compact (en plus du header). Même visibilité. -->
+                    <Border Grid.Column="3"
+                            Padding="8,3" CornerRadius="3"
+                            VerticalAlignment="Center"
+                            Background="{DynamicResource AlertBadgeBackground}"
+                            Cursor="Hand"
+                            Visibility="{Binding HasPendingAlert, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
+                            ToolTip="{Binding PendingAlertSummary}">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick"
+                                          Command="{Binding AcknowledgeAlertCommand}" />
+                        </Border.InputBindings>
+                        <Border.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         From="1" To="0.5" Duration="0:0:0.8" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Border.Triggers>
+                        <TextBlock Text="(!) Alerte"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AlertBadgeForeground}" />
+                    </Border>
                 </Grid>
+            </Border>
 
-                <!-- Ligne 2 -->
-                <Grid Margin="0,14,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="280" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="220" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+            <!-- ====================================================================
+                 Onglets de contenu
+                 ==================================================================== -->
+            <Border Padding="20,12,20,16">
+                <TabControl>
 
-                    <TextBlock Grid.Column="0" Text="Forêt cible" VerticalAlignment="Center"
-                               Foreground="{DynamicResource SubtleText}" FontSize="12"
-                               FontWeight="SemiBold" Margin="0,0,10,0" />
+                    <TabItem Header="Contrôleurs de domaine">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <DataGrid ItemsSource="{Binding DomainControllers}"
+                                      CanUserResizeColumns="True" CanUserSortColumns="True"
+                                      CanUserReorderColumns="True">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow">
+                                        <Setter Property="Tag"
+                                                Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                        <Setter Property="ContextMenu">
+                                            <Setter.Value>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Auditer ce DC seul"
+                                                              Command="{Binding PlacementTarget.Tag.AuditSingleDcCommand,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                              CommandParameter="{Binding}" />
+                                                </ContextMenu>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" SortMemberPath="IsReachable">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Ellipse Width="10" Height="10"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                         Fill="{Binding IsReachable, Converter={x:Static vm:ReachabilityToBrushConverter.Instance}}"
+                                                         ToolTip="{Binding IsReachable, Converter={x:Static vm:ReachabilityToTextConverter.Instance}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn  Header="Contrôleur"  Binding="{Binding HostName}"  Width="260" MinWidth="120" SortMemberPath="HostName" />
+                                    <DataGridTextColumn  Header="Domaine"     Binding="{Binding Domain}"    Width="180" MinWidth="100" SortMemberPath="Domain" />
+                                    <DataGridTextColumn  Header="Site"        Binding="{Binding SiteName}"  Width="160" MinWidth="100" SortMemberPath="SiteName" />
+                                    <DataGridTextColumn  Header="IP"          Binding="{Binding IPAddress}" Width="120" MinWidth="100" SortMemberPath="IPAddress" />
+                                    <DataGridTextColumn  Header="OS"          Binding="{Binding OSVersion}" Width="200" MinWidth="120" SortMemberPath="OSVersion" />
+                                    <DataGridCheckBoxColumn Header="GC"       Binding="{Binding IsGlobalCatalog}" Width="60" MinWidth="50" SortMemberPath="IsGlobalCatalog" />
+                                    <DataGridTextColumn  Header="Rôles FSMO"  Binding="{Binding Roles, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" MinWidth="200" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </TabItem>
 
-                    <TextBox Grid.Column="1"
-                             Text="{Binding TargetForestName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Laisser vide pour interroger la forêt courante de cette machine." />
+                    <TabItem Header="Échecs actifs">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <Grid>
+                                <DataGrid x:Name="FailuresGrid" ItemsSource="{Binding ReplicationFailures}"
+                                          CanUserResizeColumns="True" CanUserSortColumns="True"
+                                          CanUserReorderColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Ellipse Width="10" Height="10"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                         Fill="{Binding Severity, Converter={x:Static vm:FailureSeverityToBrushConverter.Instance}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Destination"   Binding="{Binding DestinationDc}" Width="220" MinWidth="120" SortMemberPath="DestinationDc" />
+                                    <DataGridTextColumn Header="Source"        Binding="{Binding SourceDc}"      Width="220" MinWidth="120" SortMemberPath="SourceDc" />
+                                    <DataGridTextColumn Header="Premier échec" Binding="{Binding FirstFailureTime, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="150" MinWidth="100" SortMemberPath="FirstFailureTime" />
+                                    <DataGridTextColumn Header="Durée"         Binding="{Binding FailureDuration, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="90" MinWidth="60" SortMemberPath="FailureDuration" />
+                                    <DataGridTextColumn Header="Tentatives"    Binding="{Binding ConsecutiveFailureCount}" Width="90" MinWidth="60" SortMemberPath="ConsecutiveFailureCount" />
+                                    <DataGridTextColumn Header="Erreur"        Binding="{Binding LastErrorMessage}" Width="*" MinWidth="200" />
+                                </DataGrid.Columns>
+                                </DataGrid>
 
-                    <TextBlock Grid.Column="2" Text="DC cible" VerticalAlignment="Center"
-                               Foreground="{DynamicResource SubtleText}" FontSize="12"
-                               FontWeight="SemiBold" Margin="18,0,10,0" />
+                                <TextBlock Text="✓ Aucun échec de réplication en cours."
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Success}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding HasItems, ElementName=FailuresGrid,
+                                                        Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                            </Grid>
+                        </Border>
+                    </TabItem>
 
-                    <TextBox Grid.Column="3"
-                             Text="{Binding TargetDcHostName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Mode DC seul : n'auditer qu'un contrôleur précis (FQDN). Laisser vide pour un audit complet." />
+                    <TabItem Header="Réplication">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <Grid>
+                                <DataGrid x:Name="ReplicationGrid" ItemsSource="{Binding ReplicationLinks}"
+                                          CanUserResizeColumns="True" CanUserSortColumns="True"
+                                          CanUserReorderColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Ellipse Width="10" Height="10"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                         Fill="{Binding Status, Converter={x:Static vm:ReplicationStatusToBrushConverter.Instance}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Destination"         Binding="{Binding DestinationDc}"   Width="200" MinWidth="120" SortMemberPath="DestinationDc" />
+                                    <DataGridTextColumn Header="Source"              Binding="{Binding SourceDc}"        Width="200" MinWidth="120" SortMemberPath="SourceDc" />
+                                    <DataGridTextColumn Header="Contexte de nommage" Binding="{Binding NamingContext}"   Width="260" MinWidth="160" SortMemberPath="NamingContext" />
+                                    <DataGridTextColumn Header="Type"                Binding="{Binding PartitionType}"   Width="120" MinWidth="80" SortMemberPath="PartitionType" />
+                                    <DataGridTextColumn Header="Dernier succès"      Binding="{Binding LastSuccess, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="140" MinWidth="100" SortMemberPath="LastSuccess" />
+                                    <DataGridTextColumn Header="Dernière tentative"  Binding="{Binding LastAttempt, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="140" MinWidth="100" SortMemberPath="LastAttempt" />
+                                    <DataGridTextColumn Header="Latence"             Binding="{Binding Latency, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="90" MinWidth="60" SortMemberPath="Latency" />
+                                    <DataGridTextColumn Header="Échecs"              Binding="{Binding ConsecutiveFailures}" Width="80" MinWidth="60" SortMemberPath="ConsecutiveFailures" />
+                                    <DataGridTextColumn Header="Message"             Binding="{Binding LastResultMessage}" Width="*" MinWidth="200" />
+                                </DataGrid.Columns>
+                                </DataGrid>
 
-                    <TextBlock Grid.Column="4" Text="{Binding TargetSummary}" VerticalAlignment="Center"
-                               Foreground="{DynamicResource SubtleText}" FontSize="12"
-                               Margin="14,0,14,0" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="Aucun lien de réplication collecté — lancez Actualiser. (Une forêt mono-DC n'en possède aucun.)"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SubtleText}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding HasItems, ElementName=ReplicationGrid,
+                                                        Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                            </Grid>
+                        </Border>
+                    </TabItem>
 
-                    <Button Grid.Column="5" Content="Identifiants…" Margin="0,0,8,0"
-                            Command="{Binding EditCredentialsCommand}"
-                            ToolTip="Définir des identifiants alternatifs pour l'audit." />
+                    <TabItem Header="Sites">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <DataGrid ItemsSource="{Binding Sites}"
+                                      CanUserResizeColumns="True" CanUserSortColumns="True"
+                                      CanUserReorderColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Site"          Binding="{Binding Name}"     Width="180" MinWidth="100" SortMemberPath="Name" />
+                                    <DataGridTextColumn Header="Localisation"  Binding="{Binding Location}" Width="180" MinWidth="100" SortMemberPath="Location" />
+                                    <DataGridTextColumn Header="Contrôleurs"   Binding="{Binding DomainControllers, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="260" MinWidth="160" />
+                                    <DataGridTextColumn Header="Sous-réseaux"  Binding="{Binding Subnets, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
+                                    <DataGridTextColumn Header="Têtes de pont" Binding="{Binding BridgeheadServers, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" MinWidth="160" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </TabItem>
 
-                    <Button Grid.Column="6" Content="Réinitialiser"
-                            Command="{Binding ResetTargetCommand}"
-                            ToolTip="Revenir à la forêt courante et aux identifiants Windows." />
-                </Grid>
+                    <TabItem Header="Liens inter-sites">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <DataGrid ItemsSource="{Binding SiteLinks}"
+                                      CanUserResizeColumns="True" CanUserSortColumns="True"
+                                      CanUserReorderColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn     Header="Nom"           Binding="{Binding Name}" Width="220" MinWidth="120" SortMemberPath="Name" />
+                                    <DataGridTextColumn     Header="Sites reliés"  Binding="{Binding Sites, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="280" MinWidth="160" />
+                                    <DataGridTextColumn     Header="Coût"          Binding="{Binding Cost}"  Width="80"  MinWidth="60" SortMemberPath="Cost" />
+                                    <DataGridTextColumn     Header="Intervalle"    Binding="{Binding ReplicationInterval, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="110" MinWidth="80" SortMemberPath="ReplicationInterval" />
+                                    <DataGridTextColumn     Header="Transport"     Binding="{Binding TransportType}" Width="130" MinWidth="90" SortMemberPath="TransportType" />
+                                    <DataGridCheckBoxColumn Header="Notifications" Binding="{Binding ChangeNotificationEnabled}" Width="*" MinWidth="120" SortMemberPath="ChangeNotificationEnabled" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </TabItem>
 
+                    <TabItem Header="Diagnostics">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <Grid>
+                                <DataGrid x:Name="IssuesGrid" ItemsSource="{Binding Issues}"
+                                          CanUserResizeColumns="True" CanUserSortColumns="True"
+                                          CanUserReorderColumns="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Ellipse Width="10" Height="10"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                             Fill="{Binding Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Sévérité"           Binding="{Binding Severity}" Width="90"  MinWidth="70"  SortMemberPath="Severity" />
+                                        <DataGridTextColumn Header="Code"               Binding="{Binding Code}"     Width="220" MinWidth="140" SortMemberPath="Code" />
+                                        <DataGridTextColumn Header="Anomalie"           Binding="{Binding Title}"    Width="320" MinWidth="180" SortMemberPath="Title" />
+                                        <DataGridTextColumn Header="Éléments concernés" Binding="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
+                                        <DataGridTextColumn Header="Recommandation"     Binding="{Binding Description}" Width="*" MinWidth="260" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock Text="✓ Aucune anomalie de configuration détectée."
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Success}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding HasItems, ElementName=IssuesGrid,
+                                                        Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                            </Grid>
+                        </Border>
+                    </TabItem>
+
+                    <TabItem Header="Santé DNS">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <Grid>
+                                <DataGrid x:Name="DnsGrid" ItemsSource="{Binding DnsChecks}"
+                                          CanUserResizeColumns="True" CanUserSortColumns="True"
+                                          CanUserReorderColumns="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Ellipse Width="10" Height="10"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                             Fill="{Binding Status, Converter={x:Static vm:DnsCheckStatusToBrushConverter.Instance}}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Type"           Binding="{Binding Type, Converter={x:Static vm:DnsCheckedRecordTypeToTextConverter.Instance}}"  Width="130" MinWidth="100" SortMemberPath="Type" />
+                                        <DataGridTextColumn Header="Enregistrement" Binding="{Binding RecordName}"   Width="320" MinWidth="180" SortMemberPath="RecordName" />
+                                        <DataGridTextColumn Header="Statut"         Binding="{Binding Status}"       Width="90"  MinWidth="70"  SortMemberPath="Status" />
+                                        <DataGridTextColumn Header="Cible"          Binding="{Binding Target}"       Width="260" MinWidth="160" SortMemberPath="Target" />
+                                        <DataGridTextColumn Header="Port"           Binding="{Binding Port}"         Width="70"  MinWidth="50"  SortMemberPath="Port" />
+                                        <DataGridTextColumn Header="IP"             Binding="{Binding IpAddress}"    Width="130" MinWidth="100" SortMemberPath="IpAddress" />
+                                        <DataGridTextColumn Header="Détail"          Binding="{Binding ErrorMessage}" Width="*"   MinWidth="200" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock Text="✓ Aucun audit DNS exécuté — lancez Actualiser."
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SubtleText}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding HasItems, ElementName=DnsGrid,
+                                                        Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                            </Grid>
+                        </Border>
+                    </TabItem>
+
+                    <TabItem Header="Santé réseau">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <Grid>
+                                <DataGrid x:Name="PortsGrid" ItemsSource="{Binding PortChecks}"
+                                          CanUserResizeColumns="True" CanUserSortColumns="True"
+                                          CanUserReorderColumns="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Ellipse Width="10" Height="10"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                             Fill="{Binding Status, Converter={x:Static vm:PortCheckStatusToBrushConverter.Instance}}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Contrôleur"      Binding="{Binding HostName}"     Width="260" MinWidth="160" SortMemberPath="HostName" />
+                                        <DataGridTextColumn Header="Port"            Binding="{Binding Port}"         Width="80"  MinWidth="60"  SortMemberPath="Port" />
+                                        <DataGridTextColumn Header="Service"         Binding="{Binding ServiceLabel}" Width="180" MinWidth="120" SortMemberPath="ServiceLabel" />
+                                        <DataGridTextColumn Header="Statut"          Binding="{Binding Status}"       Width="100" MinWidth="70"  SortMemberPath="Status" />
+                                        <DataGridTextColumn Header="Temps de réponse" Binding="{Binding ResponseTime, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="130" MinWidth="100" SortMemberPath="ResponseTime" />
+                                        <DataGridTextColumn Header="Détail"          Binding="{Binding ErrorMessage}" Width="*"   MinWidth="200" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock Text="✓ Aucun test de port exécuté — lancez Actualiser."
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SubtleText}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding HasItems, ElementName=PortsGrid,
+                                                        Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                            </Grid>
+                        </Border>
+                    </TabItem>
+
+                    <!-- ====================================================================
+                         9ème onglet : Comparaison de deux audits (v0.5.0)
+                         Masqué tant qu'aucun diff n'est calculé.
+                         ==================================================================== -->
+                    <TabItem Header="Comparaison"
+                             Visibility="{Binding Compare.HasDiff, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Margin="20">
+
+                                    <!-- Bandeau récap -->
+                                    <Border Background="{DynamicResource SurfaceAlt}"
+                                            BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                                            CornerRadius="4" Padding="14">
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold" FontSize="13"
+                                                       Foreground="{DynamicResource Foreground}">
+                                                <Run Text="Forêt : " />
+                                                <Run Text="{Binding Compare.Diff.CurrentForestName, Mode=OneWay}" />
+                                            </TextBlock>
+                                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                <TextBlock Foreground="{DynamicResource SubtleText}">
+                                                    <Run Text="Référence : " />
+                                                    <Run Text="{Binding Compare.Diff.ReferenceGeneratedAt, StringFormat='{}{0:dd/MM/yyyy HH:mm}', Mode=OneWay}" />
+                                                </TextBlock>
+                                                <TextBlock Foreground="{DynamicResource SubtleText}" Margin="24,0,0,0">
+                                                    <Run Text="Courant : " />
+                                                    <Run Text="{Binding Compare.Diff.CurrentGeneratedAt, StringFormat='{}{0:dd/MM/yyyy HH:mm}', Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource Warning}"
+                                                       Visibility="{Binding Compare.Diff.DifferentForests, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                                <Run Text="⚠ Forêts différentes : " />
+                                                <Run Text="{Binding Compare.Diff.ReferenceForestName, Mode=OneWay}" />
+                                                <Run Text=" vs " />
+                                                <Run Text="{Binding Compare.Diff.CurrentForestName, Mode=OneWay}" />
+                                                <Run Text=" — la comparaison reste affichée mais a peu de sens fonctionnellement." />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Évolution du score (cachée si Score null) -->
+                                    <Border Background="{DynamicResource SurfaceAlt}"
+                                            BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                                            CornerRadius="4" Padding="14" Margin="0,12,0,0"
+                                            Visibility="{Binding Compare.Diff.Score, Converter={x:Static vm:NullToCollapsedConverter.Instance}}">
+                                        <StackPanel>
+                                            <TextBlock Text="Évolution du score" FontWeight="SemiBold" FontSize="13"
+                                                       Foreground="{DynamicResource Foreground}" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <TextBlock Foreground="{DynamicResource SubtleText}">
+                                                    <Run Text="Score : " />
+                                                    <Run Text="{Binding Compare.Diff.Score.ValueBefore, Mode=OneWay}" />
+                                                    <Run Text="/100 → " />
+                                                    <Run Text="{Binding Compare.Diff.Score.ValueAfter, Mode=OneWay}" />
+                                                    <Run Text="/100 (delta " />
+                                                    <Run Text="{Binding Compare.Diff.Score.Delta, Mode=OneWay}" />
+                                                    <Run Text=")" />
+                                                </TextBlock>
+                                                <TextBlock Margin="24,0,0,0" Foreground="{DynamicResource SubtleText}">
+                                                    <Run Text="Niveau : " />
+                                                    <Run Text="{Binding Compare.Diff.Score.LevelBefore, Mode=OneWay}" />
+                                                    <Run Text=" → " />
+                                                    <Run Text="{Binding Compare.Diff.Score.LevelAfter, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Changements significatifs -->
+                                    <TextBlock Text="Changements significatifs" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Foreground}"
+                                               Margin="0,18,0,6" />
+                                    <Border Style="{StaticResource Card}" Padding="0">
+                                        <Grid>
+                                            <DataGrid x:Name="SignificantChangesGrid"
+                                                      ItemsSource="{Binding Compare.SignificantChanges}"
+                                                      CanUserResizeColumns="True"
+                                                      CanUserSortColumns="True"
+                                                      MinHeight="120" MaxHeight="280">
+                                                <DataGrid.Columns>
+                                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
+                                                        <DataGridTemplateColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <Ellipse Width="10" Height="10"
+                                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                         Fill="{Binding Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
+                                                            </DataTemplate>
+                                                        </DataGridTemplateColumn.CellTemplate>
+                                                    </DataGridTemplateColumn>
+                                                    <DataGridTextColumn Header="Sévérité"    Binding="{Binding Severity}"   Width="90"  MinWidth="70" SortMemberPath="Severity" />
+                                                    <DataGridTextColumn Header="Code"        Binding="{Binding Code}"       Width="220" MinWidth="150" SortMemberPath="Code" />
+                                                    <DataGridTextColumn Header="Description" Binding="{Binding Title}"      Width="*"   MinWidth="240" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+
+                                            <TextBlock Text="✓ Aucun changement significatif détecté entre les deux audits."
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource Success}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       IsHitTestVisible="False"
+                                                       Visibility="{Binding HasItems, ElementName=SignificantChangesGrid, Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Récap par catégorie -->
+                                    <TextBlock Text="Différences détaillées" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Foreground}"
+                                               Margin="0,18,0,6" />
+                                    <Border Style="{StaticResource Card}" Padding="14">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="90" />
+                                                <ColumnDefinition Width="90" />
+                                                <ColumnDefinition Width="90" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <!-- En-têtes -->
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Catégorie"     FontWeight="SemiBold" Foreground="{DynamicResource SubtleText}" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Ajouts"        FontWeight="SemiBold" Foreground="{DynamicResource SubtleText}" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Suppressions"  FontWeight="SemiBold" Foreground="{DynamicResource SubtleText}" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="0" Grid.Column="3" Text="Modifs"        FontWeight="SemiBold" Foreground="{DynamicResource SubtleText}" HorizontalAlignment="Right" />
+
+                                            <!-- DCs -->
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Contrôleurs"             Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Compare.Diff.DomainControllers.Added.Count}"   Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Compare.Diff.DomainControllers.Removed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding Compare.Diff.DomainControllers.Changed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+                                            <!-- Liens -->
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Liens de réplication"    Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Compare.Diff.ReplicationLinks.Added.Count}"    Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Compare.Diff.ReplicationLinks.Removed.Count}"  Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding Compare.Diff.ReplicationLinks.Changed.Count}"  Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+                                            <!-- Failures -->
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Échecs de réplication"   Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Compare.Diff.ReplicationFailures.Added.Count}"   Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding Compare.Diff.ReplicationFailures.Removed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding Compare.Diff.ReplicationFailures.Changed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+                                            <!-- Sites -->
+                                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Sites"                   Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Compare.Diff.Sites.Added.Count}"   Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding Compare.Diff.Sites.Removed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding Compare.Diff.Sites.Changed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+                                            <!-- Site links -->
+                                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Liens inter-sites"       Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Compare.Diff.SiteLinks.Added.Count}"   Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding Compare.Diff.SiteLinks.Removed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="5" Grid.Column="3" Text="{Binding Compare.Diff.SiteLinks.Changed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+                                            <!-- Issues -->
+                                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Anomalies"               Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding Compare.Diff.Issues.Added.Count}"   Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding Compare.Diff.Issues.Removed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="6" Grid.Column="3" Text="-"                                            Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+                                            <!-- DNS -->
+                                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Vérifications DNS"      Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding Compare.Diff.DnsChecks.Added.Count}"   Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding Compare.Diff.DnsChecks.Removed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="7" Grid.Column="3" Text="{Binding Compare.Diff.DnsChecks.Changed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+                                            <!-- Ports -->
+                                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Tests de ports"          Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding Compare.Diff.PortChecks.Added.Count}"   Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding Compare.Diff.PortChecks.Removed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="8" Grid.Column="3" Text="{Binding Compare.Diff.PortChecks.Changed.Count}" Margin="0,4,0,0" HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Bouton effacer -->
+                                    <Button Content="Effacer la comparaison"
+                                            Command="{Binding Compare.ClearCommand}"
+                                            HorizontalAlignment="Right" Margin="0,16,0,0" />
+
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </TabItem>
+
+                </TabControl>
+            </Border>
+
+        </DockPanel>
+
+        <!-- ====================================================================
+             Toast overlay (v0.5.0)
+             Positionné en bas-droite, animé par code-behind via OnShowAlert.
+             ==================================================================== -->
+        <Border x:Name="ToastBorder"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,28,64"
+                Background="{DynamicResource ToastBackground}"
+                CornerRadius="6" Padding="16,12"
+                MaxWidth="380"
+                Opacity="0"
+                Visibility="Collapsed"
+                Cursor="Hand"
+                MouseLeftButtonUp="OnToastClick">
+            <Border.Effect>
+                <DropShadowEffect Color="Black" Opacity="0.4" BlurRadius="16" ShadowDepth="3" />
+            </Border.Effect>
+            <StackPanel>
+                <TextBlock Text="Alerte de surveillance"
+                           Foreground="{DynamicResource ToastForeground}"
+                           FontWeight="SemiBold" FontSize="13" />
+                <TextBlock x:Name="ToastText" Text=""
+                           Foreground="{DynamicResource ToastForeground}"
+                           FontSize="12" Margin="0,4,0,0"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="Cliquer pour acquitter."
+                           Foreground="{DynamicResource ToastForeground}"
+                           FontStyle="Italic" Opacity="0.7"
+                           FontSize="11" Margin="0,6,0,0" />
             </StackPanel>
         </Border>
 
-        <!-- ====================================================================
-             Footer / status bar
-             ==================================================================== -->
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource SurfaceElevated}"
-                BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0"
-                Padding="24,10">
-            <StackPanel Orientation="Horizontal">
-                <Ellipse Width="8" Height="8" Margin="0,0,10,0"
-                         Fill="{DynamicResource Success}"
-                         Visibility="{Binding IsBusy, Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
-                <Ellipse Width="8" Height="8" Margin="0,0,10,0"
-                         Fill="{DynamicResource Accent}"
-                         Visibility="{Binding IsBusy, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource SubtleText}"
-                           VerticalAlignment="Center" />
-            </StackPanel>
-        </Border>
-
-        <!-- ====================================================================
-             Onglets de contenu
-             Le scroll horizontal est activé via Style global DataGrid.
-             ==================================================================== -->
-        <Border Padding="20,12,20,16">
-            <TabControl>
-
-                <TabItem Header="Contrôleurs de domaine">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <DataGrid ItemsSource="{Binding DomainControllers}"
-                                  CanUserResizeColumns="True" CanUserSortColumns="True"
-                                  CanUserReorderColumns="True">
-                            <!--
-                                Menu contextuel attaché à chaque ligne (pas au DataGrid lui-même).
-                                Avantage : le DataContext de la ligne = DomainControllerInfo,
-                                donc CommandParameter="{Binding}" passe bien le DC sélectionné.
-
-                                Astuce ContextMenu : le menu vit dans un Popup hors du visual tree,
-                                donc RelativeSource AncestorType=DataGrid ne fonctionne PAS depuis le
-                                menu (Command resterait null). Solution standard : stocker le DataContext
-                                de la grille (le ViewModel) dans le Tag de chaque row, et y accéder via
-                                PlacementTarget.Tag depuis le menu.
-                            -->
-                            <DataGrid.RowStyle>
-                                <Style TargetType="DataGridRow">
-                                    <Setter Property="Tag"
-                                            Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
-                                    <Setter Property="ContextMenu">
-                                        <Setter.Value>
-                                            <ContextMenu>
-                                                <MenuItem Header="Auditer ce DC seul"
-                                                          Command="{Binding PlacementTarget.Tag.AuditSingleDcCommand,
-                                                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                          CommandParameter="{Binding}" />
-                                            </ContextMenu>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </DataGrid.RowStyle>
-                            <DataGrid.Columns>
-                                <DataGridTextColumn  Header="Contrôleur"  Binding="{Binding HostName}"  Width="260" MinWidth="120" SortMemberPath="HostName" />
-                                <DataGridTextColumn  Header="Domaine"     Binding="{Binding Domain}"    Width="180" MinWidth="100" SortMemberPath="Domain" />
-                                <DataGridTextColumn  Header="Site"        Binding="{Binding SiteName}"  Width="160" MinWidth="100" SortMemberPath="SiteName" />
-                                <DataGridTextColumn  Header="IP"          Binding="{Binding IPAddress}" Width="120" MinWidth="100" SortMemberPath="IPAddress" />
-                                <DataGridTextColumn  Header="OS"          Binding="{Binding OSVersion}" Width="200" MinWidth="120" SortMemberPath="OSVersion" />
-                                <DataGridCheckBoxColumn Header="GC"       Binding="{Binding IsGlobalCatalog}" Width="60" MinWidth="50" SortMemberPath="IsGlobalCatalog" />
-                                <DataGridTextColumn  Header="Rôles FSMO"  Binding="{Binding Roles, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" MinWidth="200" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-                </TabItem>
-
-                <TabItem Header="Échecs actifs">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <DataGrid ItemsSource="{Binding ReplicationFailures}"
-                                  CanUserResizeColumns="True" CanUserSortColumns="True"
-                                  CanUserReorderColumns="True">
-                            <DataGrid.Columns>
-                                <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Ellipse Width="10" Height="10"
-                                                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                     Fill="{Binding Severity, Converter={x:Static vm:FailureSeverityToBrushConverter.Instance}}" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Destination"   Binding="{Binding DestinationDc}" Width="220" MinWidth="120" SortMemberPath="DestinationDc" />
-                                <DataGridTextColumn Header="Source"        Binding="{Binding SourceDc}"      Width="220" MinWidth="120" SortMemberPath="SourceDc" />
-                                <DataGridTextColumn Header="Premier échec" Binding="{Binding FirstFailureTime, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="150" MinWidth="100" SortMemberPath="FirstFailureTime" />
-                                <DataGridTextColumn Header="Durée"         Binding="{Binding FailureDuration, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="90" MinWidth="60" SortMemberPath="FailureDuration" />
-                                <DataGridTextColumn Header="Tentatives"    Binding="{Binding ConsecutiveFailureCount}" Width="90" MinWidth="60" SortMemberPath="ConsecutiveFailureCount" />
-                                <DataGridTextColumn Header="Erreur"        Binding="{Binding LastErrorMessage}" Width="*" MinWidth="200" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-                </TabItem>
-
-                <TabItem Header="Réplication">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <DataGrid ItemsSource="{Binding ReplicationLinks}"
-                                  CanUserResizeColumns="True" CanUserSortColumns="True"
-                                  CanUserReorderColumns="True">
-                            <DataGrid.Columns>
-                                <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Ellipse Width="10" Height="10"
-                                                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                     Fill="{Binding Status, Converter={x:Static vm:ReplicationStatusToBrushConverter.Instance}}" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Destination"         Binding="{Binding DestinationDc}"   Width="200" MinWidth="120" SortMemberPath="DestinationDc" />
-                                <DataGridTextColumn Header="Source"              Binding="{Binding SourceDc}"        Width="200" MinWidth="120" SortMemberPath="SourceDc" />
-                                <DataGridTextColumn Header="Contexte de nommage" Binding="{Binding NamingContext}"   Width="260" MinWidth="160" SortMemberPath="NamingContext" />
-                                <DataGridTextColumn Header="Type"                Binding="{Binding PartitionType}"   Width="120" MinWidth="80" SortMemberPath="PartitionType" />
-                                <DataGridTextColumn Header="Dernier succès"      Binding="{Binding LastSuccess, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="140" MinWidth="100" SortMemberPath="LastSuccess" />
-                                <DataGridTextColumn Header="Dernière tentative"  Binding="{Binding LastAttempt, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="140" MinWidth="100" SortMemberPath="LastAttempt" />
-                                <DataGridTextColumn Header="Latence"             Binding="{Binding Latency, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="90" MinWidth="60" SortMemberPath="Latency" />
-                                <DataGridTextColumn Header="Échecs"              Binding="{Binding ConsecutiveFailures}" Width="80" MinWidth="60" SortMemberPath="ConsecutiveFailures" />
-                                <DataGridTextColumn Header="Message"             Binding="{Binding LastResultMessage}" Width="*" MinWidth="200" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-                </TabItem>
-
-                <TabItem Header="Sites">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <DataGrid ItemsSource="{Binding Sites}"
-                                  CanUserResizeColumns="True" CanUserSortColumns="True"
-                                  CanUserReorderColumns="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Site"          Binding="{Binding Name}"     Width="180" MinWidth="100" SortMemberPath="Name" />
-                                <DataGridTextColumn Header="Localisation"  Binding="{Binding Location}" Width="180" MinWidth="100" SortMemberPath="Location" />
-                                <DataGridTextColumn Header="Contrôleurs"   Binding="{Binding DomainControllers, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="260" MinWidth="160" />
-                                <DataGridTextColumn Header="Sous-réseaux"  Binding="{Binding Subnets, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
-                                <DataGridTextColumn Header="Têtes de pont" Binding="{Binding BridgeheadServers, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" MinWidth="160" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-                </TabItem>
-
-                <TabItem Header="Liens inter-sites">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <DataGrid ItemsSource="{Binding SiteLinks}"
-                                  CanUserResizeColumns="True" CanUserSortColumns="True"
-                                  CanUserReorderColumns="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn     Header="Nom"           Binding="{Binding Name}" Width="220" MinWidth="120" SortMemberPath="Name" />
-                                <DataGridTextColumn     Header="Sites reliés"  Binding="{Binding Sites, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="280" MinWidth="160" />
-                                <DataGridTextColumn     Header="Coût"          Binding="{Binding Cost}"  Width="80"  MinWidth="60" SortMemberPath="Cost" />
-                                <DataGridTextColumn     Header="Intervalle"    Binding="{Binding ReplicationInterval, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="110" MinWidth="80" SortMemberPath="ReplicationInterval" />
-                                <DataGridTextColumn     Header="Transport"     Binding="{Binding TransportType}" Width="130" MinWidth="90" SortMemberPath="TransportType" />
-                                <DataGridCheckBoxColumn Header="Notifications" Binding="{Binding ChangeNotificationEnabled}" Width="*" MinWidth="120" SortMemberPath="ChangeNotificationEnabled" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Border>
-                </TabItem>
-
-                <TabItem Header="Diagnostics">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <Grid>
-                            <DataGrid x:Name="IssuesGrid" ItemsSource="{Binding Issues}"
-                                      CanUserResizeColumns="True" CanUserSortColumns="True"
-                                      CanUserReorderColumns="True">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Ellipse Width="10" Height="10"
-                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                         Fill="{Binding Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Sévérité"            Binding="{Binding Severity}" Width="90"  MinWidth="70"  SortMemberPath="Severity" />
-                                    <DataGridTextColumn Header="Code"                Binding="{Binding Code}"     Width="220" MinWidth="140" SortMemberPath="Code" />
-                                    <DataGridTextColumn Header="Anomalie"            Binding="{Binding Title}"    Width="320" MinWidth="180" SortMemberPath="Title" />
-                                    <DataGridTextColumn Header="Éléments concernés" Binding="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
-                                    <DataGridTextColumn Header="Recommandation"      Binding="{Binding Description}" Width="*" MinWidth="260" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-
-                            <!--
-                                Message rassurant superposé à la DataGrid quand aucune anomalie
-                                n'a été détectée. On s'appuie sur DataGrid.HasItems (propriété native
-                                WPF) couplé au converter bool-à-Collapsed : Items présents → message caché.
-                            -->
-                            <TextBlock Text="✓ Aucune anomalie de configuration détectée."
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource Success}"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       IsHitTestVisible="False"
-                                       Visibility="{Binding HasItems, ElementName=IssuesGrid,
-                                                    Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
-                        </Grid>
-                    </Border>
-                </TabItem>
-
-                <TabItem Header="Santé DNS">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <Grid>
-                            <DataGrid x:Name="DnsGrid" ItemsSource="{Binding DnsChecks}"
-                                      CanUserResizeColumns="True" CanUserSortColumns="True"
-                                      CanUserReorderColumns="True">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Ellipse Width="10" Height="10"
-                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                         Fill="{Binding Status, Converter={x:Static vm:DnsCheckStatusToBrushConverter.Instance}}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Type"           Binding="{Binding Type, Converter={x:Static vm:DnsCheckedRecordTypeToTextConverter.Instance}}"  Width="130" MinWidth="100" SortMemberPath="Type" />
-                                    <DataGridTextColumn Header="Enregistrement" Binding="{Binding RecordName}"   Width="320" MinWidth="180" SortMemberPath="RecordName" />
-                                    <DataGridTextColumn Header="Statut"         Binding="{Binding Status}"       Width="90"  MinWidth="70"  SortMemberPath="Status" />
-                                    <DataGridTextColumn Header="Cible"          Binding="{Binding Target}"       Width="260" MinWidth="160" SortMemberPath="Target" />
-                                    <DataGridTextColumn Header="Port"           Binding="{Binding Port}"         Width="70"  MinWidth="50"  SortMemberPath="Port" />
-                                    <DataGridTextColumn Header="IP"             Binding="{Binding IpAddress}"    Width="130" MinWidth="100" SortMemberPath="IpAddress" />
-                                    <DataGridTextColumn Header="Détail"          Binding="{Binding ErrorMessage}" Width="*"   MinWidth="200" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-
-                            <TextBlock Text="✓ Aucun audit DNS exécuté — lancez Actualiser."
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SubtleText}"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       IsHitTestVisible="False"
-                                       Visibility="{Binding HasItems, ElementName=DnsGrid,
-                                                    Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
-                        </Grid>
-                    </Border>
-                </TabItem>
-
-                <TabItem Header="Santé réseau">
-                    <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
-                        <Grid>
-                            <DataGrid x:Name="PortsGrid" ItemsSource="{Binding PortChecks}"
-                                      CanUserResizeColumns="True" CanUserSortColumns="True"
-                                      CanUserReorderColumns="True">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Ellipse Width="10" Height="10"
-                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                         Fill="{Binding Status, Converter={x:Static vm:PortCheckStatusToBrushConverter.Instance}}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Contrôleur"      Binding="{Binding HostName}"     Width="260" MinWidth="160" SortMemberPath="HostName" />
-                                    <DataGridTextColumn Header="Port"            Binding="{Binding Port}"         Width="80"  MinWidth="60"  SortMemberPath="Port" />
-                                    <DataGridTextColumn Header="Service"         Binding="{Binding ServiceLabel}" Width="180" MinWidth="120" SortMemberPath="ServiceLabel" />
-                                    <DataGridTextColumn Header="Statut"          Binding="{Binding Status}"       Width="100" MinWidth="70"  SortMemberPath="Status" />
-                                    <DataGridTextColumn Header="Temps de réponse" Binding="{Binding ResponseTime, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="130" MinWidth="100" SortMemberPath="ResponseTime" />
-                                    <DataGridTextColumn Header="Détail"          Binding="{Binding ErrorMessage}" Width="*"   MinWidth="200" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-
-                            <TextBlock Text="✓ Aucun test de port exécuté — lancez Actualiser."
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SubtleText}"
-                                       FontSize="14" FontWeight="SemiBold"
-                                       IsHitTestVisible="False"
-                                       Visibility="{Binding HasItems, ElementName=PortsGrid,
-                                                    Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
-                        </Grid>
-                    </Border>
-                </TabItem>
-
-            </TabControl>
-        </Border>
-
-    </DockPanel>
+    </Grid>
 </Window>

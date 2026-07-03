@@ -25,7 +25,12 @@ namespace ADReplic.PowerShell.Cmdlets
         [Parameter(HelpMessage = "Nom de la forêt cible (laissez vide pour la forêt courante).")]
         public string ForestName { get; set; }
 
+        [Parameter(HelpMessage = "Audite ce seul DC (FQDN) sans énumérer la forêt. Incompatible avec un pipeline de DCs.")]
+        [ValidateNotNullOrEmpty]
+        public string DcName { get; set; }
+
         [Parameter(HelpMessage = "Identifiants alternatifs pour interroger une forêt distante.")]
+        [ValidateNotNull]
         [Credential]
         public PSCredential Credential { get; set; } = PSCredential.Empty;
 
@@ -45,10 +50,27 @@ namespace ADReplic.PowerShell.Cmdlets
 
         protected override void EndProcessing()
         {
-            var context = AuditContextBuilder.Build(ForestName, Credential);
+            var context = AuditContextBuilder.Build(this, ForestName, Credential);
+
+            if (!string.IsNullOrWhiteSpace(DcName) && _pipelineBuffer.Count > 0)
+            {
+                ThrowTerminatingError(new ErrorRecord(
+                    new PSArgumentException("-DcName est incompatible avec un pipeline de DCs : choisissez l'un ou l'autre."),
+                    "DcNameAndPipelineConflict", ErrorCategory.InvalidArgument, DcName));
+            }
 
             IReadOnlyList<DomainControllerInfo> dcs;
-            if (_pipelineBuffer.Count > 0)
+            if (!string.IsNullOrWhiteSpace(DcName))
+            {
+                // Mode DC seul : même mécanique que la GUI (v0.3.0), sans énumérer la forêt.
+                using (var cts = new CancellationTokenSource())
+                {
+                    var task = new DcInventoryProvider().GetSingleAsync(DcName.Trim(), context, cts.Token);
+                    task.Wait(cts.Token);
+                    dcs = new[] { task.Result };
+                }
+            }
+            else if (_pipelineBuffer.Count > 0)
             {
                 dcs = _pipelineBuffer;
             }

@@ -16,6 +16,11 @@
     <None Update="ADReplic.psd1">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Le psm1 imbrique (NestedModules du psd1) doit suivre le psd1 dans bin,
+         sinon Import-Module depuis le dossier de build echoue. -->
+    <None Update="ADReplic.Scheduling.psm1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

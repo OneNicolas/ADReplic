@@ -1,0 +1,116 @@
+<Window x:Class="ADReplic.App.Views.CompareDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:ADReplic.App.ViewModels"
+        Title="Comparer deux audits"
+        Width="640"
+        MinWidth="560"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Surface}">
+
+    <DockPanel LastChildFill="True">
+
+        <!-- Bandeau d'aide -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceElevated}"
+                BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1"
+                Padding="20,12">
+            <TextBlock Text="Sélectionnez deux fichiers JSON produits par ADReplic pour visualiser les différences."
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Foreground}" />
+        </Border>
+
+        <!-- Boutons en bas -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource SurfaceElevated}"
+                BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0"
+                Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="1" Content="Comparer"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding ComputeCommand}"
+                        MinWidth="100" Margin="0,0,10,0" />
+                <Button Grid.Column="2" Content="Fermer"
+                        Click="OnCloseClick"
+                        MinWidth="100" />
+            </Grid>
+        </Border>
+
+        <!-- Corps : 2 file pickers -->
+        <Grid Margin="20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Audit de référence -->
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="Audit de référence (avant)"
+                           Foreground="{DynamicResource SubtleText}"
+                           FontSize="12" FontWeight="SemiBold" />
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             Text="{Binding ReferenceFilePath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             Foreground="{DynamicResource Foreground}" />
+                    <Button Grid.Column="1" Content="Parcourir…"
+                            Command="{Binding BrowseReferenceCommand}"
+                            MinWidth="100" Margin="8,0,0,0" />
+                </Grid>
+            </StackPanel>
+
+            <!-- Audit courant -->
+            <StackPanel Grid.Row="1" Margin="0,16,0,0">
+                <TextBlock Text="Audit courant (après)"
+                           Foreground="{DynamicResource SubtleText}"
+                           FontSize="12" FontWeight="SemiBold" />
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             Text="{Binding CurrentFilePath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             Foreground="{DynamicResource Foreground}" />
+                    <Button Grid.Column="1" Content="Parcourir…"
+                            Command="{Binding BrowseCurrentCommand}"
+                            MinWidth="100" Margin="8,0,0,0" />
+                </Grid>
+            </StackPanel>
+
+            <!-- Erreur éventuelle -->
+            <Border Grid.Row="2" Margin="0,16,0,0"
+                    Background="{DynamicResource Danger}" CornerRadius="4"
+                    Padding="12,8"
+                    Visibility="{Binding HasError, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                <TextBlock Text="{Binding LoadError}"
+                           Foreground="White" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Confirmation succès -->
+            <Border Grid.Row="2" Margin="0,16,0,0"
+                    Background="{DynamicResource Success}" CornerRadius="4"
+                    Padding="12,8"
+                    Visibility="{Binding HasDiff, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                <TextBlock Foreground="White">
+                    <Run Text="Comparaison effectuée." />
+                    <Run Text=" L'onglet « Comparaison » est désormais visible dans la fenêtre principale." />
+                </TextBlock>
+            </Border>
+
+        </Grid>
+    </DockPanel>
+</Window>

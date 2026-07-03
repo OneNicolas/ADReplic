@@ -61,6 +61,29 @@ namespace ADReplic.Core.Tests.Diagnostics.Issues
         }
 
         [Fact]
+        public void Silent_on_unreachable_dc_even_with_empty_os()
+        {
+            // Un DC injoignable a OSVersion null parce que la lecture réseau a échoué,
+            // pas parce que l'OS est inconnu : DC_UNREACHABLE prend le relais, un
+            // OS_UNKNOWN supplémentaire serait un signal trompeur.
+            var dc = Dc("DC02", null);
+            dc.IsReachable = false;
+
+            Assert.Empty(new ObsoleteOsDetector().Detect(Snapshot(dc)).ToList());
+        }
+
+        [Fact]
+        public void Silent_on_unreachable_dc_even_with_obsolete_os_string()
+        {
+            // Même un OSVersion résiduel (relu d'un vieux JSON par exemple) ne doit
+            // pas produire d'anomalie OS sur un DC qu'on n'a pas pu interroger.
+            var dc = Dc("DC02", "Windows Server 2008 R2 Standard");
+            dc.IsReachable = false;
+
+            Assert.Empty(new ObsoleteOsDetector().Detect(Snapshot(dc)).ToList());
+        }
+
+        [Fact]
         public void Mixed_inventory_returns_one_issue_per_obsolete_dc()
         {
             var snap = Snapshot(

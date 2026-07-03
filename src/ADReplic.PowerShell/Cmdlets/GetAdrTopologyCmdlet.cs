@@ -18,12 +18,13 @@ namespace ADReplic.PowerShell.Cmdlets
         public string ForestName { get; set; }
 
         [Parameter(HelpMessage = "Identifiants alternatifs pour interroger une forêt distante.")]
+        [ValidateNotNull]
         [Credential]
         public PSCredential Credential { get; set; } = PSCredential.Empty;
 
         protected override void ProcessRecord()
         {
-            var context = AuditContextBuilder.Build(ForestName, Credential);
+            var context = AuditContextBuilder.Build(this, ForestName, Credential);
             using (var cts = new CancellationTokenSource())
             {
                 ITopologyProvider provider = new TopologyProvider();
