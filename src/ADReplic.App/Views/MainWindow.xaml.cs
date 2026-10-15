@@ -56,6 +56,26 @@ namespace ADReplic.App.Views
             => ((Grid)panel.Parent).RowDefinitions[Grid.GetRow(panel)];
 
         /// <summary>
+        /// Déplie/replie les conséquences d'un DC injoignable (onglet Diagnostics).
+        /// Posé directement sur la ligne : le DataGrid transfère son
+        /// RowDetailsVisibilityMode aux lignes et écrase toute valeur venue d'un style.
+        /// </summary>
+        private void OnDerivedToggleChanged(object sender, RoutedEventArgs e)
+        {
+            var toggle = (ToggleButton)sender;
+            var row = FindAncestor<DataGridRow>(toggle);
+            if (row != null)
+                row.DetailsVisibility = toggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private static T FindAncestor<T>(DependencyObject start) where T : DependencyObject
+        {
+            for (var current = start; current != null; current = VisualTreeHelper.GetParent(current))
+                if (current is T match) return match;
+            return null;
+        }
+
+        /// <summary>
         /// Convertit le DrawingImage vectoriel défini dans App.xaml en BitmapSource
         /// pour pouvoir l'utiliser comme Window.Icon. Cette astuce évite de devoir
         /// embarquer un fichier .ico binaire dans le projet.

@@ -136,6 +136,8 @@ namespace ADReplic.App.ViewModels
             CopyFailureDiagnosticCommand = new RelayCommand<object>(_ => CopyFailureDiagnostic(), _ => SelectedFailure != null);
             CopyIssueDiagnosticCommand   = new RelayCommand<object>(_ => CopyIssueDiagnostic(),   _ => SelectedIssue != null);
             CopyTextCommand              = new RelayCommand<string>(CopyText, t => !string.IsNullOrEmpty(t));
+            CloseFailureDetailCommand    = new RelayCommand<object>(_ => SelectedFailure = null);
+            CloseIssueDetailCommand      = new RelayCommand<object>(_ => { SelectedIssueRow = null; SelectedIssue = null; });
 
             StatusMessage = "Prêt — cliquez sur Actualiser pour lancer un audit.";
         }
@@ -174,6 +176,8 @@ namespace ADReplic.App.ViewModels
         public ICommand CopyIssueDiagnosticCommand { get; }
         /// <summary>Copie une commande individuelle (paramètre : le texte) depuis le panneau de détail.</summary>
         public ICommand CopyTextCommand { get; }
+        public ICommand CloseFailureDetailCommand { get; }
+        public ICommand CloseIssueDetailCommand { get; }
 
         // === Sous-VMs =======================================================
         public CompareViewModel Compare { get; }

@@ -586,6 +586,7 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="{Binding ErrorTitle, Mode=OneWay}"
                                                            FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"
@@ -594,6 +595,8 @@
                                                         Style="{StaticResource PrimaryButton}"
                                                         ToolTip="Copie la fiche complète (texte brut + HTML) pour un mail ou un ticket."
                                                         Command="{Binding DataContext.CopyFailureDiagnosticCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                <Button Grid.Column="2" Content="✕" Margin="6,0,0,0" Padding="8,4" ToolTip="Fermer le panneau"
+                                                        Command="{Binding DataContext.CloseFailureDetailCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                             </Grid>
                                             <TextBlock Style="{StaticResource DetailLabel}" Margin="0,2,0,0">
                                                 <Run Text="Code " /><Run Text="{Binding LastErrorCode, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding LastErrorMessage, Mode=OneWay}" />
@@ -717,16 +720,12 @@
                                           SelectionMode="Single" IsReadOnly="True"
                                           CanUserResizeColumns="True" CanUserSortColumns="True"
                                           CanUserReorderColumns="True"
-                                          RowDetailsVisibilityMode="Collapsed">
-                                    <DataGrid.RowStyle>
-                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsExpanded}" Value="True">
-                                                    <Setter Property="DetailsVisibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </DataGrid.RowStyle>
+                                          RowDetailsVisibilityMode="Collapsed"
+                                          EnableRowVirtualization="False">
+                                    <!-- DetailsVisibility est posé directement sur la ligne par le code-behind du
+                                         bouton (OnDerivedToggleChanged) : le DataGrid transfère son RowDetailsVisibilityMode
+                                         aux lignes et écrase toute valeur venue d'un style. Pas de virtualisation ici
+                                         (liste courte) pour qu'une ligne recyclée n'hérite pas de l'état d'une autre. -->
                                     <DataGrid.Columns>
                                         <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
                                             <DataGridTemplateColumn.CellTemplate>
@@ -746,6 +745,7 @@
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                                  Checked="OnDerivedToggleChanged" Unchecked="OnDerivedToggleChanged"
                                                                   Visibility="{Binding HasChildren, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
                                                                   HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="Hand" Focusable="False"
                                                                   Background="Transparent" BorderThickness="0" Padding="0"
@@ -842,6 +842,7 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="{Binding Title, Mode=OneWay}"
                                                            FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"
@@ -850,6 +851,8 @@
                                                         Style="{StaticResource PrimaryButton}"
                                                         ToolTip="Copie la fiche complète (texte brut + HTML) pour un mail ou un ticket."
                                                         Command="{Binding DataContext.CopyIssueDiagnosticCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                <Button Grid.Column="2" Content="✕" Margin="6,0,0,0" Padding="8,4" ToolTip="Fermer le panneau"
+                                                        Command="{Binding DataContext.CloseIssueDetailCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                                             </Grid>
                                             <TextBlock Style="{StaticResource DetailLabel}" Margin="0,2,0,0">
                                                 <Run Text="{Binding Code, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}, Mode=OneWay}" />
