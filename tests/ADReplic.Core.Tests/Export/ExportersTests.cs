@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Export;
 using ADReplic.Core.Models;
 using Xunit;
@@ -368,6 +369,33 @@ namespace ADReplic.Core.Tests.Export
             Assert.Contains("Pourquoi c'est important", content);
             Assert.Contains("Que faire", content);
             Assert.Contains("<ol class=\"steps\">", content);
+        }
+
+        [Fact]
+        public void Html_export_folds_consequences_of_an_unreachable_dc_under_their_parent()
+        {
+            var snapshot = BuildSampleSnapshot();
+            snapshot.Issues = new[]
+            {
+                new DetectedIssue { Code = "DC_UNREACHABLE", Severity = IssueSeverity.Critical, Title = "DC injoignable : dc02.exemple.local", RelatedHost = "dc02.exemple.local" },
+                new DetectedIssue { Code = "PORT_CRITICAL_CLOSED", Severity = IssueSeverity.Critical, Title = "Port 389 ferme", RelatedHost = "dc02.exemple.local" },
+                new DetectedIssue { Code = "PORT_CLOSED_OR_FILTERED", Severity = IssueSeverity.Warning, Title = "Port 636 ferme", RelatedHost = "dc02.exemple.local" },
+                new DetectedIssue { Code = "SITE_NO_SUBNET", Severity = IssueSeverity.Warning, Title = "Site sans subnet" }
+            };
+            var target = Path.Combine(_tempDir, "audit.html");
+            new HtmlAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("2 anomalies liées à l'indisponibilité de dc02.exemple.local", content);
+
+            var detailsStart = content.IndexOf("<details class=\"derived\"", StringComparison.Ordinal);
+            var detailsEnd   = content.IndexOf("</details>", detailsStart, StringComparison.Ordinal);
+            Assert.True(detailsStart > 0);
+            Assert.InRange(content.IndexOf("PORT_CRITICAL_CLOSED", StringComparison.Ordinal), detailsStart, detailsEnd);
+            Assert.InRange(content.IndexOf("PORT_CLOSED_OR_FILTERED", StringComparison.Ordinal), detailsStart, detailsEnd);
+            // L'anomalie sans lien avec le DC injoignable reste une ligne de premier niveau.
+            Assert.False(content.IndexOf("SITE_NO_SUBNET", StringComparison.Ordinal) > detailsStart
+                      && content.IndexOf("SITE_NO_SUBNET", StringComparison.Ordinal) < detailsEnd);
         }
 
         [Fact]

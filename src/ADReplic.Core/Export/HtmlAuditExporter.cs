@@ -199,20 +199,39 @@ namespace ADReplic.Core.Export
             sb.AppendLine("<table><thead><tr>");
             sb.AppendLine("<th></th><th>Sévérité</th><th>Code</th><th>Anomalie</th><th>Éléments concernés</th><th>Constat</th><th>Pourquoi c'est important</th><th>Que faire</th>");
             sb.AppendLine("</tr></thead><tbody>");
-            foreach (var issue in issues)
+            // Les conséquences d'un DC injoignable (ports, SRV orphelins) sont repliées
+            // sous leur DC_UNREACHABLE : le lecteur voit la cause, pas dix symptômes.
+            foreach (var group in IssueGrouper.Group(issues))
             {
-                sb.Append("<tr>");
-                sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", IssueSeverityDotClass(issue.Severity));
-                sb.AppendFormat("<td>{0}</td>", Encode(issue.Severity.ToString()));
-                sb.AppendFormat("<td class=\"mono\">{0}</td>", Encode(issue.Code));
-                sb.AppendFormat("<td>{0}</td>", Encode(issue.Title));
-                sb.AppendFormat("<td>{0}</td>", FormatList(issue.AffectedItems));
-                sb.AppendFormat("<td>{0}</td>", Encode(issue.Description));
-                sb.AppendFormat("<td>{0}</td>", Encode(issue.Impact));
-                sb.AppendFormat("<td>{0}{1}</td>", FormatSteps(issue.Recommendation), FormatDocLink(issue.DocumentationUrl));
-                sb.AppendLine("</tr>");
+                AppendIssueRow(sb, group.Parent);
+                if (group.HasChildren) AppendDerivedIssuesRow(sb, group);
             }
             sb.AppendLine("</tbody></table></section>");
+        }
+
+        private static void AppendIssueRow(StringBuilder sb, DetectedIssue issue)
+        {
+            sb.Append("<tr>");
+            sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", IssueSeverityDotClass(issue.Severity));
+            sb.AppendFormat("<td>{0}</td>", Encode(issue.Severity.ToString()));
+            sb.AppendFormat("<td class=\"mono\">{0}</td>", Encode(issue.Code));
+            sb.AppendFormat("<td>{0}</td>", Encode(issue.Title));
+            sb.AppendFormat("<td>{0}</td>", FormatList(issue.AffectedItems));
+            sb.AppendFormat("<td>{0}</td>", Encode(issue.Description));
+            sb.AppendFormat("<td>{0}</td>", Encode(issue.Impact));
+            sb.AppendFormat("<td>{0}{1}</td>", FormatSteps(issue.Recommendation), FormatDocLink(issue.DocumentationUrl));
+            sb.AppendLine("</tr>");
+        }
+
+        /// <summary>Ligne pleine largeur sous le parent : un details replié contenant les anomalies dérivées.</summary>
+        private static void AppendDerivedIssuesRow(StringBuilder sb, IssueGroup group)
+        {
+            sb.AppendLine("<tr class=\"derived-row\"><td colspan=\"8\">");
+            sb.AppendFormat("<details class=\"derived\"><summary>{0}</summary>", Encode(group.DerivedSummary)).AppendLine();
+            sb.AppendLine("<table class=\"inner\"><tbody>");
+            foreach (var child in group.Children) AppendIssueRow(sb, child);
+            sb.AppendLine("</tbody></table></details>");
+            sb.AppendLine("</td></tr>");
         }
 
         private static string IssueSeverityDotClass(IssueSeverity severity)
@@ -621,6 +640,10 @@ details.remediation .sub { margin: 10px 0 4px; font-size: 12px; font-weight: 600
 details.remediation ul, details.remediation ol { margin: 0; padding-left: 20px; }
 details.remediation code { font-family: Consolas, 'SF Mono', monospace; font-size: 12px;
                            background: #f6f8fa; padding: 1px 5px; border-radius: 3px; }
+tr.derived-row > td { background: #f6f8fa; padding: 4px 10px 4px 28px; }
+details.derived summary { cursor: pointer; font-size: 12px; color: #586069; }
+details.derived table.inner { margin: 6px 0 2px; }
+details.derived table.inner td { font-size: 12px; }
 </style>";
     }
 }
