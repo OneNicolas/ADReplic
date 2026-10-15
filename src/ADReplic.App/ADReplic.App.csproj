@@ -15,4 +15,10 @@
     <ProjectReference Include="..\ADReplic.Core\ADReplic.Core.csproj" />
   </ItemGroup>
 
+  <!-- Fusion de ADReplic.Core.dll dans ADReplic.exe en Release : voir ILRepack.targets
+       (cible MergeIntoSingleExe, sortie dans bin\Release\net48\single\). -->
+  <ItemGroup>
+    <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.44.2" PrivateAssets="all" />
+  </ItemGroup>
+
 </Project>

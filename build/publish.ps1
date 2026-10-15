@@ -7,11 +7,11 @@
     Produit :
       dist/
         ADReplic-{version}/
-          App/                       GUI WPF (ADReplic.exe + dépendances)
+          ADReplic.exe               GUI WPF, executable unique (Core fusionne)
+          ADReplic.exe.config
           Module/ADReplic/           Module PowerShell binaire (cmdlets ADR*)
           Module/ADForestAudit/      Module historique (cmdlets ADFA*)
-          Lancer-GUI.cmd             Double-clic pour lancer la GUI
-          Lancer-PowerShell.cmd      Console PS avec modules pré-chargés
+          Lancer-PowerShell.cmd      Console PS avec modules pre-charges
           README.txt
         ADReplic-{version}.zip       Archive prête à transporter
 
@@ -56,19 +56,6 @@ function Remove-IfExists {
     }
 }
 
-function Write-LauncherGui {
-    param([string]$Path)
-    $content = @'
-@echo off
-REM Lance la GUI ADReplic depuis l'emplacement du .cmd, peu importe le CWD.
-setlocal
-cd /d "%~dp0"
-start "" "App\ADReplic.exe"
-endlocal
-'@
-    Set-Content -Path $Path -Value $content -Encoding ASCII
-}
-
 function Write-LauncherShell {
     param([string]$Path)
     # On positionne PSModulePath pour rendre ADReplic et ADForestAudit
@@ -103,12 +90,14 @@ PREREQUIS
 UTILISATION
 -----------
 1) Interface graphique :
-   Double-clic sur Lancer-GUI.cmd a la racine du pack.
-   (equivalent : double-clic sur App\ADReplic.exe dans le sous-dossier)
+   Double-clic sur ADReplic.exe a la racine du pack.
+   C'est un executable unique et autonome : il ne depend d'aucun autre
+   fichier du pack et peut etre copie seul (avec ADReplic.exe.config)
+   sur un poste ou un serveur.
 
-   Le launcher Lancer-GUI.cmd est juste un raccourci pratique pour
-   eviter d'aller chercher l'exe dans le sous-dossier App. Il fait un
-   simple "start App\ADReplic.exe", rien d'autre.
+   Si Windows affiche un avertissement SmartScreen au premier lancement
+   (fichier telecharge depuis Internet), cliquez sur "Informations
+   complementaires" puis "Executer quand meme".
 
 2) Console PowerShell :
    Double-clic sur Lancer-PowerShell.cmd
@@ -123,6 +112,8 @@ UTILISATION
      Get-ADRDnsHealth            Sante DNS (SRV + A records des DC)
      Get-ADRPortHealth           Sante reseau (tests de ports TCP par DC)
      Export-ADRAudit             Rapport complet (CSV / JSON / HTML)
+     Compare-ADRAudit            Compare deux audits JSON (degradations)
+     Get-ADRErrorExplanation     Explique un code d'erreur de replication (hors ligne)
      Register-ADRScheduledAudit  Planifie un audit recurrent (Daily/Weekly/Monthly)
 
    ADForestAudit (API historique, retrocompatibilite scripts existants)
@@ -180,7 +171,6 @@ $distRoot  = Join-Path $root 'dist'
 $version   = Get-VersionFromBuildProps -RepoRoot $root
 $packName  = "ADReplic-$version"
 $packRoot  = Join-Path $distRoot $packName
-$appOut    = Join-Path $packRoot 'App'
 $modBinOut = Join-Path $packRoot 'Module\ADReplic'
 $modPsOut  = Join-Path $packRoot 'Module\ADForestAudit'
 $zipPath   = Join-Path $distRoot "$packName.zip"
@@ -196,17 +186,25 @@ if (-not $SkipBuild) {
 Write-Host "==> Preparation $packName" -ForegroundColor Cyan
 Remove-IfExists -Path $packRoot
 Remove-IfExists -Path $zipPath
-New-Item -ItemType Directory -Path $appOut    -Force | Out-Null
 New-Item -ItemType Directory -Path $modBinOut -Force | Out-Null
 New-Item -ItemType Directory -Path $modPsOut  -Force | Out-Null
 
-Write-Host "==> Pack GUI" -ForegroundColor Cyan
-$appBin = Join-Path $root "src\ADReplic.App\bin\$Configuration\net48"
-if (-not (Test-Path (Join-Path $appBin 'ADReplic.exe'))) {
+Write-Host "==> Pack GUI (executable unique a la racine)" -ForegroundColor Cyan
+$appBin    = Join-Path $root "src\ADReplic.App\bin\$Configuration\net48"
+$singleBin = Join-Path $appBin 'single'
+if (Test-Path (Join-Path $singleBin 'ADReplic.exe')) {
+    # Release : ILRepack.targets a fusionne Core.dll dans l'exe.
+    Copy-Item (Join-Path $singleBin 'ADReplic.exe')        -Destination $packRoot -Force
+    Copy-Item (Join-Path $singleBin 'ADReplic.exe.config') -Destination $packRoot -Force
+} elseif (Test-Path (Join-Path $appBin 'ADReplic.exe')) {
+    # Debug : pas de fusion, on livre l'exe et sa dependance cote a cote.
+    Write-Warning "Exe fusionne absent ($singleBin) : pack avec Core.dll separee (build $Configuration)."
+    foreach ($file in 'ADReplic.exe','ADReplic.exe.config','ADReplic.Core.dll') {
+        Copy-Item (Join-Path $appBin $file) -Destination $packRoot -Force
+    }
+} else {
     throw "ADReplic.exe introuvable dans $appBin. Lance le build d'abord."
 }
-Copy-Item -Path (Join-Path $appBin '*') -Destination $appOut -Recurse -Force
-Get-ChildItem $appOut -Include '*.pdb','*.xml' -Recurse | Remove-Item -Force
 
 Write-Host "==> Pack module ADReplic (binaire)" -ForegroundColor Cyan
 $psBin = Join-Path $root "src\ADReplic.PowerShell\bin\$Configuration\net48"
@@ -231,8 +229,7 @@ $adfaSrc = Join-Path $root 'src\ADForestAudit'
 Copy-Item (Join-Path $adfaSrc 'ADForestAudit.psd1') -Destination $modPsOut -Force
 Copy-Item (Join-Path $adfaSrc 'ADForestAudit.psm1') -Destination $modPsOut -Force
 
-Write-Host "==> Launchers et README" -ForegroundColor Cyan
-Write-LauncherGui   -Path (Join-Path $packRoot 'Lancer-GUI.cmd')
+Write-Host "==> Launcher PowerShell et README" -ForegroundColor Cyan
 Write-LauncherShell -Path (Join-Path $packRoot 'Lancer-PowerShell.cmd')
 Write-Readme        -Path (Join-Path $packRoot 'README.txt') -Version $version
 
@@ -241,15 +238,8 @@ Write-Readme        -Path (Join-Path $packRoot 'README.txt') -Version $version
 # du repo de dev. Le script trouve le module tout seul (.\Module\ADReplic\).
 Copy-Item (Join-Path $PSScriptRoot 'Test-PowerShellModule.ps1') -Destination $packRoot -Force
 
-# Icone .ico a la racine du pack : utile pour creer un raccourci .lnk
-# personnalise apres deploiement (Windows ne sait pas extraire proprement
-# l'icone depuis un .cmd, seulement depuis un .exe ou .ico).
-$iconSrc = Join-Path $root 'src\ADReplic.App\Resources\ADReplic.ico'
-if (Test-Path $iconSrc) {
-    Copy-Item $iconSrc -Destination (Join-Path $packRoot 'ADReplic.ico') -Force
-} else {
-    Write-Warning "Icone source introuvable ($iconSrc). Lancez build\Generate-Icon.ps1 pour la regenerer."
-}
+# Plus d'ADReplic.ico a la racine : l'exe etant lui-meme a la racine, Windows
+# en extrait l'icone directement pour les raccourcis.
 
 if (-not $SkipZip) {
     Write-Host "==> Creation de l'archive" -ForegroundColor Cyan
@@ -265,4 +255,4 @@ if (-not $SkipZip) {
     Write-Host ("  Archive : {0} ({1:N1} Mo)" -f $zipPath, $zipSize)
 }
 Write-Host ""
-Write-Host "Pour tester : `"$packRoot\Lancer-GUI.cmd`""
+Write-Host "Pour tester : `"$packRoot\ADReplic.exe`""

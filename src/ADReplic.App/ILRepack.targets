@@ -1,0 +1,41 @@
+<Project>
+  <!-- Fusion de ADReplic.Core.dll dans ADReplic.exe (Release uniquement) pour
+       livrer un executable unique a la racine du pack portable.
+
+       Ce fichier porte le nom conventionnel attendu par ILRepack.Lib.MSBuild.Task :
+       sa presence desactive la cible par defaut du package, qui fusionnerait en
+       place et supprimerait Core.dll du dossier de sortie. Ici le resultat est
+       ecrit dans un sous-dossier "single" : la sortie normale du build reste
+       intacte pour le debug et pour le module PowerShell, qui conserve sa
+       propre copie de Core.dll.
+
+       TargetPlatformDirectory est force sur les assemblies de reference 4.8
+       (fournies par NuGet) car sous le MSBuild de dotnet, ILRepack chercherait
+       sinon la plateforme dans le dossier .NET Core. -->
+
+  <Target Name="MergeIntoSingleExe" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <SingleExeDir>$(TargetDir)single\</SingleExeDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <MergeInput Include="$(TargetPath)" />
+      <MergeInput Include="$(TargetDir)ADReplic.Core.dll" />
+      <MergeLibraryPath Include="$(TargetDir)" />
+      <MergeLibraryPath Include="$(FrameworkPathOverride)" />
+    </ItemGroup>
+    <MakeDir Directories="$(SingleExeDir)" />
+    <ILRepack
+      InputAssemblies="@(MergeInput)"
+      LibraryPath="@(MergeLibraryPath)"
+      OutputFile="$(SingleExeDir)$(TargetFileName)"
+      TargetKind="WinExe"
+      TargetPlatformDirectory="$(FrameworkPathOverride)"
+      CopyAttributes="true"
+      Parallel="true"
+      DebugInfo="false" />
+    <Copy SourceFiles="$(TargetDir)$(TargetFileName).config"
+          DestinationFolder="$(SingleExeDir)"
+          Condition="Exists('$(TargetDir)$(TargetFileName).config')" />
+    <Message Importance="high" Text="Exe unique genere : $(SingleExeDir)$(TargetFileName)" />
+  </Target>
+</Project>
