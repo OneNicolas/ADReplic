@@ -37,6 +37,15 @@ namespace ADReplic.Core.Diagnostics.Issues
         /// <summary>Éléments concernés (DC, sites, liens) listés par leur nom.</summary>
         public IReadOnlyList<string> AffectedItems { get; set; } = new List<string>();
 
+        /// <summary>
+        /// Nom du DC auquel l'anomalie se rattache, ou null si elle ne concerne pas
+        /// un DC précis (topologie, domaine). Sert de pivot à l'agrégation de
+        /// présentation (<see cref="IssueGrouper"/>) : les conséquences d'un DC
+        /// injoignable sont repliées derrière son DC_UNREACHABLE. Ne participe
+        /// pas à l'identité de l'anomalie dans la comparaison d'audits.
+        /// </summary>
+        public string RelatedHost { get; set; }
+
         public override string ToString() => $"[{Severity}] {Code} - {Title}";
     }
 }

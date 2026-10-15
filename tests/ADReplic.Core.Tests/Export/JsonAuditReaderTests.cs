@@ -52,6 +52,26 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
+        public void Round_trip_preserves_issue_related_host_and_tolerates_its_absence()
+        {
+            var input = new AuditSnapshot
+            {
+                ForestName = "exemple.local",
+                Issues = new[]
+                {
+                    new DetectedIssue { Code = "DC_UNREACHABLE", Severity = IssueSeverity.Critical, Title = "t", RelatedHost = "dc02.exemple.local" },
+                    new DetectedIssue { Code = "SITE_NO_DC", Severity = IssueSeverity.Info, Title = "t" }
+                }
+            };
+
+            var output = RoundTrip(input, _tempFile);
+
+            Assert.Equal("dc02.exemple.local", output.Issues[0].RelatedHost);
+            // Un audit v0.7 archivé n'a pas ce champ : il doit rester null, sans erreur de lecture.
+            Assert.Null(output.Issues[1].RelatedHost);
+        }
+
+        [Fact]
         public void Round_trip_minimal_snapshot()
         {
             var input = new AuditSnapshot

@@ -146,6 +146,50 @@ namespace ADReplic.Core.Tests.Diagnostics
         }
 
         [Fact]
+        public void Consequences_of_an_unreachable_dc_are_not_counted_as_anomalies()
+        {
+            // Un DC éteint produit DC_UNREACHABLE + ports + SRV orphelins : tout est déjà
+            // dit par "1 DC injoignable". Les recompter en "11 anomalies" noie l'essentiel.
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02", reachable: false) },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new[]
+                {
+                    new DetectedIssue { Code = "DC_UNREACHABLE", Severity = IssueSeverity.Critical, RelatedHost = "DC02" },
+                    new DetectedIssue { Code = "PORT_CRITICAL_CLOSED", Severity = IssueSeverity.Critical, RelatedHost = "DC02" },
+                    new DetectedIssue { Code = "DNS_SRV_POINTS_TO_DEAD_DC", Severity = IssueSeverity.Warning, RelatedHost = "DC02" }
+                }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("1 contrôleur de domaine sur 2 est injoignable", text);
+            Assert.DoesNotContain("anomalie", text);
+        }
+
+        [Fact]
+        public void Unrelated_anomalies_are_still_counted_next_to_an_unreachable_dc()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02", reachable: false) },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new[]
+                {
+                    new DetectedIssue { Code = "DC_UNREACHABLE", Severity = IssueSeverity.Critical, RelatedHost = "DC02" },
+                    new DetectedIssue { Code = "PORT_CRITICAL_CLOSED", Severity = IssueSeverity.Critical, RelatedHost = "DC02" },
+                    new DetectedIssue { Code = "PORT_CRITICAL_CLOSED", Severity = IssueSeverity.Critical, RelatedHost = "DC01" },
+                    new DetectedIssue { Code = "SITE_NO_SUBNET", Severity = IssueSeverity.Warning }
+                }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("2 anomalies de configuration à traiter dont 1 critique", text);
+        }
+
+        [Fact]
         public void Acronym_titles_keep_their_capitals_mid_sentence()
         {
             var snap = new AuditSnapshot

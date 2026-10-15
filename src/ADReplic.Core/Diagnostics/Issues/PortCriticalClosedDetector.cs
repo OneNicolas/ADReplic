@@ -41,7 +41,8 @@ namespace ADReplic.Core.Diagnostics.Issues
                         "Sans ce port, le DC ne peut pas servir les fonctions essentielles d'AD " +
                         "(authentification, annuaire ou partage SYSVOL). Vérifiez le pare-feu local, " +
                         "le routage réseau et l'état du service correspondant sur le DC.",
-                    AffectedItems = new[] { $"{check.HostName}:{check.Port}" }
+                    AffectedItems = new[] { $"{check.HostName}:{check.Port}" },
+                    RelatedHost   = check.HostName
                 };
             }
         }

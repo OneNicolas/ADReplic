@@ -41,7 +41,8 @@ namespace ADReplic.Core.Diagnostics.Issues
                         "fonctionnalités peuvent être dégradées (résolution DNS croisée, LDAPS, " +
                         "interrogations sur catalogue global). Vérifiez pare-feu et routage si la " +
                         "fonctionnalité concernée est utilisée.",
-                    AffectedItems = new[] { $"{check.HostName}:{check.Port}" }
+                    AffectedItems = new[] { $"{check.HostName}:{check.Port}" },
+                    RelatedHost   = check.HostName
                 };
             }
         }

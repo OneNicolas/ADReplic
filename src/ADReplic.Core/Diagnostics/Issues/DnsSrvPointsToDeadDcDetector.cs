@@ -68,7 +68,8 @@ namespace ADReplic.Core.Diagnostics.Issues
                     AffectedItems = pair.Value
                         .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
                         .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToArray()
+                        .ToArray(),
+                    RelatedHost = pair.Key
                 };
             }
         }

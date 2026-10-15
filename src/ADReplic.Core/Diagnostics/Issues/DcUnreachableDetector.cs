@@ -37,7 +37,8 @@ namespace ADReplic.Core.Diagnostics.Issues
                         "sans rétrogradation propre, nettoyez ses métadonnées " +
                         "(metadata cleanup) pour éviter les SRV orphelins et les échecs " +
                         "de réplication persistants.",
-                    AffectedItems = new[] { dc.HostName }
+                    AffectedItems = new[] { dc.HostName },
+                    RelatedHost   = dc.HostName
                 };
             }
         }

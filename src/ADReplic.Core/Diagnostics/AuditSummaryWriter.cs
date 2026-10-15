@@ -45,7 +45,10 @@ namespace ADReplic.Core.Diagnostics
             var realFailures = failures.Where(f => f.LastErrorCode != ReplicationFailureProbe.UnreachableErrorCode).ToList();
             if (realFailures.Count > 0) parts.Add(DescribeFailures(realFailures));
 
-            if (issues.Count > 0) parts.Add(DescribeIssues(issues));
+            // Le DC injoignable et ses conséquences (ports, SRV orphelins) sont déjà
+            // couverts par la phrase ci-dessus : on ne compte que les anomalies propres.
+            var standaloneIssues = IssueGrouper.TopLevelExcludingUnreachable(issues);
+            if (standaloneIssues.Count > 0) parts.Add(DescribeIssues(standaloneIssues));
 
             var sentence = string.Join(" ; ", parts) + ".";
             return snapshot.IsSingleDcMode ? sentence + " Audit en mode DC seul." : sentence;
