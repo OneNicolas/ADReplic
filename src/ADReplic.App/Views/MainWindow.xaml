@@ -506,7 +506,22 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="*" MinHeight="120" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
+                                    <!-- Ligne du panneau de détail : proportionnelle (plafonnée) quand il est ouvert,
+                                         Auto sinon. Deux lignes * ne débordent jamais de la carte, contrairement à une
+                                         ligne Auto + MinHeight qui poussait le bas du panneau hors écran. -->
+                                    <RowDefinition x:Name="FailureDetailRow">
+                                        <RowDefinition.Style>
+                                            <Style TargetType="RowDefinition">
+                                                <Setter Property="Height" Value="Auto" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasSelectedFailure}" Value="True">
+                                                        <Setter Property="Height" Value="1.5*" />
+                                                        <Setter Property="MaxHeight" Value="320" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </RowDefinition.Style>
+                                    </RowDefinition>
                                 </Grid.RowDefinitions>
 
                                 <DataGrid Grid.Row="0" x:Name="FailuresGrid" ItemsSource="{Binding ReplicationFailures}"
@@ -583,8 +598,8 @@
                                 </Thumb>
                                 <!-- Visibility resolue contre le DataContext de la fenetre : sur ce Border le
                                      DataContext est remplace par la selection (null = binding muet = visible).
-                                     MaxHeight = taille d'ouverture ; la poignee la leve (code-behind). -->
-                                <Border x:Name="FailureDetailPanel" Grid.Row="2" Padding="14,6,14,12" MaxHeight="320"
+                                     La hauteur vient de la ligne de grille (style ci-dessus + poignee en code-behind). -->
+                                <Border x:Name="FailureDetailPanel" Grid.Row="2" Padding="14,6,14,12"
                                         Visibility="{Binding DataContext.HasSelectedFailure, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
                                         DataContext="{Binding SelectedFailure}">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -717,7 +732,19 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="*" MinHeight="120" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition x:Name="IssueDetailRow">
+                                        <RowDefinition.Style>
+                                            <Style TargetType="RowDefinition">
+                                                <Setter Property="Height" Value="Auto" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasSelectedIssue}" Value="True">
+                                                        <Setter Property="Height" Value="1.5*" />
+                                                        <Setter Property="MaxHeight" Value="320" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </RowDefinition.Style>
+                                    </RowDefinition>
                                 </Grid.RowDefinitions>
 
                                 <!-- v0.8.0 : lignes = IssueRowViewModel (anomalie + conséquences repliées
@@ -873,7 +900,7 @@
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
-                                <Border x:Name="IssueDetailPanel" Grid.Row="2" Padding="14,6,14,12" MaxHeight="320"
+                                <Border x:Name="IssueDetailPanel" Grid.Row="2" Padding="14,6,14,12"
                                         Visibility="{Binding DataContext.HasSelectedIssue, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
                                         DataContext="{Binding SelectedIssue}">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">

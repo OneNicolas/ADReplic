@@ -25,43 +25,40 @@ namespace ADReplic.App.Views
         }
 
         /// <summary>
-        /// Les panneaux de détail s'ouvrent plafonnés (MaxHeight en XAML) pour ne pas
-        /// écraser la grille. La poignée règle ensuite UNIQUEMENT la hauteur du panneau,
-        /// bornée entre un minimum lisible et l'espace disponible (la grille garde sa
-        /// hauteur minimale) ; la ligne * de la grille absorbe toujours le reste, donc
-        /// la zone suit la fenêtre. Un GridSplitter aurait figé les deux lignes en
-        /// pixels : après un glissement, le bas du panneau sortait de la carte et le
-        /// scroll ne pouvait plus atteindre la fin. À la fermeture, le panneau reprend
-        /// sa taille d'ouverture.
+        /// Grille principale (ligne 0, *) et panneau de détail (ligne 2, * plafonné
+        /// à l'ouverture par le style XAML) se partagent la carte en proportions : deux
+        /// lignes * ne débordent jamais, quelle que soit la taille de la fenêtre. La
+        /// poignée ne fait que déplacer la proportion entre les deux (le plafond est
+        /// levé dès le premier glissement) ; à la fermeture du panneau, les valeurs
+        /// locales sont effacées et le style reprend la main (ligne Auto, puis 1.5*
+        /// plafonnée à la prochaine ouverture). Ne pas revenir à un GridSplitter ni à
+        /// une ligne Auto + MinHeight : le bas du panneau sortait de la carte et le
+        /// scroll n'atteignait plus les dernières lignes.
         /// </summary>
         private static void WireDetailPanelResize(Thumb splitter, FrameworkElement panel)
         {
             const double minPanelHeight = 80;
-            var openingMaxHeight = panel.MaxHeight;
-            var grid = (Grid)panel.Parent;
-
-            double MaxPanelHeight()
-                => Math.Max(minPanelHeight, grid.ActualHeight - grid.RowDefinitions[0].MinHeight - splitter.ActualHeight);
+            var grid     = (Grid)panel.Parent;
+            var gridRow  = grid.RowDefinitions[0];
+            var panelRow = grid.RowDefinitions[Grid.GetRow(panel)];
 
             splitter.DragDelta += (_, e) =>
             {
-                var wanted = panel.ActualHeight - e.VerticalChange;
-                panel.MaxHeight = double.PositiveInfinity;
-                panel.Height = Math.Min(Math.Max(minPanelHeight, wanted), MaxPanelHeight());
-            };
+                var total  = gridRow.ActualHeight + panelRow.ActualHeight;
+                var wanted = panelRow.ActualHeight - e.VerticalChange;
+                var panelPx = Math.Min(Math.Max(minPanelHeight, wanted), Math.Max(minPanelHeight, total - gridRow.MinHeight));
 
-            // Fenêtre réduite après un glissement : le panneau ne doit pas pousser la grille sous son minimum.
-            grid.SizeChanged += (_, __) =>
-            {
-                if (!double.IsNaN(panel.Height) && panel.Height > MaxPanelHeight())
-                    panel.Height = MaxPanelHeight();
+                panelRow.MaxHeight = double.PositiveInfinity;
+                panelRow.Height = new GridLength(panelPx, GridUnitType.Star);
+                gridRow.Height  = new GridLength(total - panelPx, GridUnitType.Star);
             };
 
             panel.IsVisibleChanged += (_, e) =>
             {
                 if ((bool)e.NewValue) return;
-                panel.ClearValue(HeightProperty);
-                panel.MaxHeight = openingMaxHeight;
+                panelRow.ClearValue(RowDefinition.HeightProperty);
+                panelRow.ClearValue(RowDefinition.MaxHeightProperty);
+                gridRow.ClearValue(RowDefinition.HeightProperty);
             };
         }
 
