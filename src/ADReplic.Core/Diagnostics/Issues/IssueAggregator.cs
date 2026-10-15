@@ -33,7 +33,15 @@ namespace ADReplic.Core.Diagnostics.Issues
             {
                 if (detector == null) continue;
                 var found = detector.Detect(snapshot);
-                if (found != null) all.AddRange(found);
+                if (found == null) continue;
+                foreach (var issue in found)
+                {
+                    if (issue == null) continue;
+                    // Impact / recommandation centralisés : le détecteur garde le constat,
+                    // la base de connaissance fournit le "pourquoi" et le "que faire".
+                    IssueKnowledgeBase.Enrich(issue);
+                    all.Add(issue);
+                }
             }
 
             // Tri Critical > Warning > Info, puis par code, puis par titre, pour stabilité d'affichage.

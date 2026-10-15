@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Web.Script.Serialization;
 using ADReplic.Core.Abstractions;
 using ADReplic.Core.Models;
 
@@ -73,8 +74,12 @@ namespace ADReplic.Core.Export
         private static void WriteObject(StringBuilder sb, object obj, int indent)
         {
             sb.Append('{');
+            // [ScriptIgnore] est honoré pour rester cohérent avec JsonAuditReader
+            // (JavaScriptSerializer) : une propriété calculée exclue à l'écriture
+            // n'est pas non plus attendue à la lecture.
             var props = obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
+                .Where(p => !p.IsDefined(typeof(ScriptIgnoreAttribute), inherit: true))
                 .ToArray();
 
             for (int i = 0; i < props.Length; i++)

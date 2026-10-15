@@ -1,0 +1,178 @@
+using System;
+using ADReplic.Core.Diagnostics;
+using ADReplic.Core.Diagnostics.Issues;
+using ADReplic.Core.Models;
+using Xunit;
+
+namespace ADReplic.Core.Tests.Diagnostics
+{
+    /// <summary>
+    /// La phrase de synthèse doit être lisible par un non-expert : pas de code,
+    /// pas de GUID, les faits importants d'abord (DC injoignables, échecs, anomalies).
+    /// </summary>
+    public class AuditSummaryWriterTests
+    {
+        private static DomainControllerInfo Dc(string name, bool reachable = true) =>
+            new DomainControllerInfo { HostName = name, Domain = "exemple.local", IsReachable = reachable };
+
+        private static ReplicationFailureInfo Failure(string dest, string src, int code, double hoursAgo) =>
+            new ReplicationFailureInfo
+            {
+                DestinationDc = dest, SourceDc = src, LastErrorCode = code,
+                FirstFailureTime = DateTime.Now.AddHours(-hoursAgo), ConsecutiveFailureCount = 3
+            };
+
+        private static DetectedIssue Issue(string code, IssueSeverity sev) =>
+            new DetectedIssue { Code = code, Severity = sev, Title = code };
+
+        [Fact]
+        public void Null_snapshot_yields_empty_string()
+        {
+            Assert.Equal("", AuditSummaryWriter.Write(null));
+        }
+
+        [Fact]
+        public void Healthy_forest_is_reassuring_and_mentions_dc_count()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02"), Dc("DC03") },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new DetectedIssue[0]
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.StartsWith("Tout fonctionne", text);
+            Assert.Contains("3 contrôleurs de domaine", text);
+            Assert.Contains("aucun échec de réplication", text);
+            Assert.Contains("aucune anomalie", text);
+        }
+
+        [Fact]
+        public void Single_failure_names_both_dcs_duration_and_clear_title()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02") },
+                ReplicationFailures = new[] { Failure("DC02", "DC01", 1722, hoursAgo: 72) },
+                Issues = new DetectedIssue[0]
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("1 échec de réplication", text);
+            Assert.Contains("DC01", text);
+            Assert.Contains("DC02", text);
+            Assert.Contains("3 j", text);
+            Assert.Contains("RPC injoignable", text);
+            Assert.DoesNotContain("1722", text);
+        }
+
+        [Fact]
+        public void Several_failures_are_counted_not_listed()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02"), Dc("DC03") },
+                ReplicationFailures = new[]
+                {
+                    Failure("DC02", "DC01", 1722, 2),
+                    Failure("DC03", "DC01", 8453, 50),
+                    Failure("DC03", "DC02", 1256, 1)
+                },
+                Issues = new DetectedIssue[0]
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("3 échecs de réplication", text);
+            Assert.Contains("le plus ancien", text);
+        }
+
+        [Fact]
+        public void Unreachable_dcs_are_mentioned_first()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02", reachable: false), Dc("DC03", reachable: false) },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new[] { Issue("DC_UNREACHABLE", IssueSeverity.Critical) }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.StartsWith("2 contrôleurs de domaine sur 3 sont injoignables", text);
+        }
+
+        [Fact]
+        public void Issues_are_counted_with_critical_breakdown()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01") },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new[]
+                {
+                    Issue("A", IssueSeverity.Critical),
+                    Issue("B", IssueSeverity.Warning),
+                    Issue("C", IssueSeverity.Info)
+                }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("3 anomalies", text);
+            Assert.Contains("1 critique", text);
+        }
+
+        [Fact]
+        public void Synthetic_unreachable_failure_is_not_counted_twice()
+        {
+            // Vecu sur la foret de test : un DC eteint produit un echec synthetique
+            // (code -1) ; le bandeau disait "1 DC injoignable ; 1 echec ... (dC injoignable)".
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02", reachable: false) },
+                ReplicationFailures = new[] { Failure("DC02", "(injoignable)", ReplicationFailureProbe.UnreachableErrorCode, 0.01) },
+                Issues = new[] { Issue("DC_UNREACHABLE", IssueSeverity.Critical) }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("1 contrôleur de domaine sur 2 est injoignable", text);
+            Assert.DoesNotContain("échec de réplication", text);
+            Assert.DoesNotContain("dC", text);
+        }
+
+        [Fact]
+        public void Acronym_titles_keep_their_capitals_mid_sentence()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02") },
+                ReplicationFailures = new[] { Failure("DC02", "DC01", 1722, 2) },
+                Issues = new DetectedIssue[0]
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            // "Serveur RPC injoignable" -> "serveur RPC injoignable" (initiale abaissee, sigle intact).
+            Assert.Contains("(serveur RPC injoignable)", text);
+        }
+
+        [Fact]
+        public void Single_dc_mode_is_stated()
+        {
+            var snap = new AuditSnapshot
+            {
+                IsSingleDcMode = true,
+                DomainControllers = new[] { Dc("DC01") },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new DetectedIssue[0]
+            };
+
+            Assert.Contains("DC seul", AuditSummaryWriter.Write(snap));
+        }
+    }
+}

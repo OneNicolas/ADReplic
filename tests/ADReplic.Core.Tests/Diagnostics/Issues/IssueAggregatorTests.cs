@@ -146,5 +146,25 @@ namespace ADReplic.Core.Tests.Diagnostics.Issues
             // Et l'ordre place le critique en tête.
             Assert.Equal(IssueSeverity.Critical, result[0].Severity);
         }
+
+        [Fact]
+        public void Aggregate_enriches_issues_with_impact_and_recommendation()
+        {
+            var snapshot = new AuditSnapshot
+            {
+                DomainControllers = new[]
+                {
+                    new DomainControllerInfo { HostName = "DC01", Domain = "exemple.local", OSVersion = "Windows Server 2008 R2" }
+                }
+            };
+
+            var result = IssueAggregator.Aggregate(snapshot);
+
+            var osIssue = Assert.Single(result, i => i.Code == "OS_UNSUPPORTED");
+            Assert.False(string.IsNullOrWhiteSpace(osIssue.Impact));
+            Assert.False(string.IsNullOrWhiteSpace(osIssue.Recommendation));
+            // La description d'origine reste intacte (compatibilité exports / JSON).
+            Assert.False(string.IsNullOrWhiteSpace(osIssue.Description));
+        }
     }
 }

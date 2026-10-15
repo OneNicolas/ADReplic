@@ -18,8 +18,21 @@ namespace ADReplic.Core.Diagnostics.Issues
         /// <summary>Titre court affichable en une ligne dans la GUI.</summary>
         public string Title { get; set; }
 
-        /// <summary>Explication détaillée avec impact et recommandation de correction.</summary>
+        /// <summary>
+        /// Constat : ce qui a été observé, en une ou deux phrases. Conservé tel quel
+        /// pour la compatibilité des exports et des audits JSON archivés ; les champs
+        /// structurés ci-dessous le complètent sans le remplacer.
+        /// </summary>
         public string Description { get; set; }
+
+        /// <summary>Pourquoi c'est important : conséquence concrète pour les utilisateurs ou la forêt.</summary>
+        public string Impact { get; set; }
+
+        /// <summary>Que faire : vérifications et corrections, du plus simple au plus intrusif.</summary>
+        public string Recommendation { get; set; }
+
+        /// <summary>Article de référence (Microsoft Learn de préférence), ou null.</summary>
+        public string DocumentationUrl { get; set; }
 
         /// <summary>Éléments concernés (DC, sites, liens) listés par leur nom.</summary>
         public IReadOnlyList<string> AffectedItems { get; set; } = new List<string>();

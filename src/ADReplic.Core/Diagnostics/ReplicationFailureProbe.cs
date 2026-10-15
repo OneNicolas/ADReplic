@@ -19,6 +19,13 @@ namespace ADReplic.Core.Diagnostics
     public sealed class ReplicationFailureProbe : IReplicationFailureProbe
     {
         private const int DefaultMaxParallelism = 8;
+
+        /// <summary>
+        /// Code synthétique (non AD) de l'échec émis quand un DC ne répond pas :
+        /// documenté dans <see cref="ReplicationErrorCatalog"/>, exclu de la phrase
+        /// de synthèse (déjà couvert par "DC injoignable").
+        /// </summary>
+        public const int UnreachableErrorCode = -1;
         private readonly int _maxParallelism;
 
         public ReplicationFailureProbe(int maxParallelism = DefaultMaxParallelism)
@@ -97,7 +104,7 @@ namespace ADReplic.Core.Diagnostics
                     SourceDc = "(injoignable)",
                     FirstFailureTime = DateTime.Now,
                     ConsecutiveFailureCount = 0,
-                    LastErrorCode = -1,
+                    LastErrorCode = UnreachableErrorCode,
                     LastErrorMessage =
                         "DC injoignable : ses échecs de réplication réels n'ont pas pu être " +
                         "consultés. Les échecs vus par les autres DC apparaîtront après leurs " +

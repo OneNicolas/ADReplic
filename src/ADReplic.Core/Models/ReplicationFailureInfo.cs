@@ -1,4 +1,6 @@
 using System;
+using System.Web.Script.Serialization;
+using ADReplic.Core.Diagnostics;
 
 namespace ADReplic.Core.Models
 {
@@ -17,6 +19,19 @@ namespace ADReplic.Core.Models
         public ReplicationFailureSeverity Severity { get; set; }
 
         public TimeSpan FailureDuration => DateTime.Now - FirstFailureTime;
+
+        /// <summary>
+        /// Fiche explicative du code d'erreur (titre clair, causes, vérifications,
+        /// commandes). Calculée à la demande depuis le catalogue, donc toujours
+        /// disponible même pour un audit JSON archivé avant son introduction.
+        /// Exclue de la sérialisation : le catalogue est la source de vérité.
+        /// </summary>
+        [ScriptIgnore]
+        public ReplicationErrorExplanation Explanation => ReplicationErrorCatalog.Lookup(LastErrorCode);
+
+        /// <summary>Titre lisible de l'erreur, pour les grilles et les exports.</summary>
+        [ScriptIgnore]
+        public string ErrorTitle => Explanation.Title;
     }
 
     public enum ReplicationFailureSeverity
