@@ -189,6 +189,51 @@ namespace ADReplic.Core.Tests.Diagnostics
             Assert.Contains("2 anomalies de configuration à traiter dont 1 critique", text);
         }
 
+        private static ReplicationLink Link(string dest, string src, ReplicationLinkStatus status)
+            => new ReplicationLink { DestinationDc = dest, SourceDc = src, NamingContext = "DC=exemple,DC=local", Status = status };
+
+        [Fact]
+        public void Failing_links_without_active_failures_are_never_reported_as_all_good()
+        {
+            // Vu sur la forêt de test juste après le redémarrage d'un DC : 4 liens en échec
+            // dans la matrice (dernière tentative ratée pendant le reboot), aucun échec
+            // actif remonté, aucune anomalie — le score était Critique et la phrase disait
+            // « Tout fonctionne ». La phrase doit suivre la matrice.
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02") },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new DetectedIssue[0],
+                ReplicationLinks = new[]
+                {
+                    Link("DC01", "DC02", ReplicationLinkStatus.Failing),
+                    Link("DC01", "DC02", ReplicationLinkStatus.Failing),
+                    Link("DC02", "DC01", ReplicationLinkStatus.Healthy),
+                    Link("DC02", "DC01", ReplicationLinkStatus.Warning)
+                }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.DoesNotContain("Tout fonctionne", text);
+            Assert.Contains("2 liens de réplication sur 4 en échec à la dernière tentative", text);
+            Assert.Contains("1 lien en avertissement", text);
+        }
+
+        [Fact]
+        public void Healthy_links_keep_the_all_good_sentence()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02") },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Issues = new DetectedIssue[0],
+                ReplicationLinks = new[] { Link("DC01", "DC02", ReplicationLinkStatus.Healthy) }
+            };
+
+            Assert.StartsWith("Tout fonctionne", AuditSummaryWriter.Write(snap));
+        }
+
         [Fact]
         public void Not_completed_audit_gets_a_neutral_sentence_that_says_no_data_was_collected()
         {

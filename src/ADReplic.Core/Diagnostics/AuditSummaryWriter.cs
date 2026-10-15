@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ADReplic.Core.Diagnostics.Issues;
@@ -35,11 +36,26 @@ namespace ADReplic.Core.Diagnostics
             var failures = snapshot.ReplicationFailures ?? new List<ReplicationFailureInfo>();
             var issues   = snapshot.Issues ?? new List<DetectedIssue>();
 
+            var links    = snapshot.ReplicationLinks ?? new List<ReplicationLink>();
+
             var dcCount          = dcs.Count;
             var unreachableCount = dcs.Count(d => !d.IsReachable);
             var scope            = snapshot.IsSingleDcMode ? " (mode DC seul)" : "";
 
-            if (unreachableCount == 0 && failures.Count == 0 && issues.Count == 0)
+            // La matrice peut être rouge sans « échec actif » ni anomalie : juste après le
+            // redémarrage d'un DC, ses liens portent encore la dernière tentative ratée
+            // alors que GetReplicationConnectionFailures ne remonte plus rien. Le score
+            // compte ces liens ; la phrase doit le faire aussi, sinon elle dit
+            // « Tout fonctionne » sous un bandeau rouge. Les liens d'un DC injoignable
+            // sont déjà couverts par la phrase sur les DC injoignables.
+            var unreachableHosts = new HashSet<string>(
+                dcs.Where(d => !d.IsReachable).Select(d => d.HostName ?? ""), StringComparer.OrdinalIgnoreCase);
+            var failingLinks = links.Count(l =>
+                (l.Status == ReplicationLinkStatus.Failing || l.Status == ReplicationLinkStatus.Unreachable)
+                && !unreachableHosts.Contains(l.DestinationDc ?? ""));
+            var warningLinks = links.Count(l => l.Status == ReplicationLinkStatus.Warning);
+
+            if (unreachableCount == 0 && failures.Count == 0 && issues.Count == 0 && failingLinks == 0 && warningLinks == 0)
             {
                 return $"Tout fonctionne : {Plural(dcCount, "contrôleur de domaine", "contrôleurs de domaine")}{scope}, " +
                        "aucun échec de réplication, aucune anomalie de configuration.";
@@ -58,6 +74,12 @@ namespace ADReplic.Core.Diagnostics
             // par la phrase sur les DC injoignables : les recompter serait redondant.
             var realFailures = failures.Where(f => f.LastErrorCode != ReplicationFailureProbe.UnreachableErrorCode).ToList();
             if (realFailures.Count > 0) parts.Add(DescribeFailures(realFailures));
+
+            if (failingLinks > 0)
+                parts.Add($"{Plural(failingLinks, "lien de réplication", "liens de réplication")} sur {links.Count} " +
+                          "en échec à la dernière tentative");
+            if (warningLinks > 0)
+                parts.Add($"{Plural(warningLinks, "lien en avertissement", "liens en avertissement")}");
 
             // Le DC injoignable et ses conséquences (ports, SRV orphelins) sont déjà
             // couverts par la phrase ci-dessus : on ne compte que les anomalies propres.
