@@ -21,7 +21,8 @@ namespace ADReplic.Core.Export
             IReadOnlyList<ReplicationFailureInfo> failures = null,
             bool isSingleDcMode = false,
             DnsHealthResult dnsHealth = null,
-            PortHealthResult portHealth = null)
+            PortHealthResult portHealth = null,
+            ClockHealthResult clockHealth = null)
         {
             var snapshot = new AuditSnapshot
             {
@@ -36,6 +37,7 @@ namespace ADReplic.Core.Export
                 SiteLinks = topology?.SiteLinks ?? Array.Empty<SiteLinkInfo>(),
                 DnsHealth = dnsHealth,
                 PortHealth = portHealth,
+                ClockHealth = clockHealth,
                 IsSingleDcMode = isSingleDcMode,
                 Summary = ComputeSummary(domainControllers, replicationLinks)
             };
@@ -71,7 +73,8 @@ namespace ADReplic.Core.Export
                 source.ReplicationFailures,
                 source.IsSingleDcMode,
                 source.DnsHealth,
-                source.PortHealth);
+                source.PortHealth,
+                source.ClockHealth);
 
             rebuilt.GeneratedAt = source.GeneratedAt;
             rebuilt.GeneratedBy = source.GeneratedBy;

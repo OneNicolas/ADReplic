@@ -33,6 +33,10 @@ namespace ADReplic.Core.Models
         /// que DnsHealth côté HealthScoreCalculator.</summary>
         public PortHealthResult PortHealth { get; set; }
 
+        /// <summary>Résultat de la sonde d'horloge (v0.8.0). Null si la sonde n'a pas tourné :
+        /// le détecteur DC_CLOCK_SKEW se tait, le score n'en dépend pas.</summary>
+        public ClockHealthResult ClockHealth { get; set; }
+
         /// <summary>
         /// Vrai si l'audit a porté sur un seul DC (mode ciblé) plutôt que sur
         /// toute la forêt. Permet aux détecteurs dont la prémisse repose sur

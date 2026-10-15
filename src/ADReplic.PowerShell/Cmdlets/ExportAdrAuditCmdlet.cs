@@ -7,6 +7,7 @@ using ADReplic.Core.Abstractions;
 using ADReplic.Core.Diagnostics;
 using ADReplic.Core.Discovery;
 using ADReplic.Core.Export;
+using ADReplic.Core.Health.Clock;
 using ADReplic.Core.Health.Dns;
 using ADReplic.Core.Health.Ports;
 using ADReplic.Core.Models;
@@ -72,6 +73,7 @@ namespace ADReplic.PowerShell.Cmdlets
             TopologySnapshot topology;
             DnsHealthResult dnsHealth = null;
             PortHealthResult portHealth = null;
+            ClockHealthResult clockHealth = null;
 
             using (var cts = new CancellationTokenSource())
             {
@@ -116,10 +118,12 @@ namespace ADReplic.PowerShell.Cmdlets
                         .ProbeAsync(primary.Forest, primary.Domain, dcs, cts.Token);
                     var portTask = new PortHealthProbe(new TcpPortProber()).ProbeAsync(
                         dcs, AdServicePorts.Default, PortHealthProbe.DefaultPerPortTimeout, cts.Token);
-                    System.Threading.Tasks.Task.WaitAll(new[] { (System.Threading.Tasks.Task)dnsTask, portTask }, cts.Token);
+                    var clockTask = new ClockHealthProbe(new LdapRootDseClockReader()).ProbeAsync(dcs, cts.Token);
+                    System.Threading.Tasks.Task.WaitAll(new[] { (System.Threading.Tasks.Task)dnsTask, portTask, clockTask }, cts.Token);
                     dnsHealth = dnsTask.Result;
                     portHealth = portTask.Result;
-                    WriteVerbose($"  {dnsHealth.Checks.Count} vérifications DNS, {portHealth.Checks.Count} tests de port.");
+                    clockHealth = clockTask.Result;
+                    WriteVerbose($"  {dnsHealth.Checks.Count} vérifications DNS, {portHealth.Checks.Count} tests de port, {clockHealth.Checks.Count} horloges lues.");
                 }
                 else if (SkipHealthProbes.IsPresent)
                 {
@@ -132,7 +136,8 @@ namespace ADReplic.PowerShell.Cmdlets
                 forestName, dcs, links, topology, failures,
                 isSingleDcMode: singleDcMode,
                 dnsHealth: dnsHealth,
-                portHealth: portHealth);
+                portHealth: portHealth,
+                clockHealth: clockHealth);
 
             IAuditExporter exporter = ResolveExporter(Format);
             exporter.Export(snapshot, resolvedPath);

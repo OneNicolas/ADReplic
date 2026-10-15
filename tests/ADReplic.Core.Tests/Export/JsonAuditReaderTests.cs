@@ -85,6 +85,32 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
+        public void Round_trip_preserves_clock_health()
+        {
+            var input = new AuditSnapshot
+            {
+                ForestName = "exemple.local",
+                ClockHealth = new ClockHealthResult
+                {
+                    ProbedAtUtc = new DateTime(2026, 10, 15, 18, 0, 0, DateTimeKind.Utc),
+                    Checks = new[]
+                    {
+                        new ClockCheckResult { HostName = "dc01.exemple.local", Status = ClockCheckStatus.Ok, OffsetFromAuditHost = TimeSpan.FromMinutes(7), DcTimeUtc = new DateTime(2026, 10, 15, 18, 7, 0, DateTimeKind.Utc) },
+                        new ClockCheckResult { HostName = "dc02.exemple.local", Status = ClockCheckStatus.Skipped }
+                    }
+                }
+            };
+
+            var output = RoundTrip(input, _tempFile);
+
+            Assert.NotNull(output.ClockHealth);
+            Assert.Equal(2, output.ClockHealth.Checks.Count);
+            Assert.Equal(TimeSpan.FromMinutes(7), output.ClockHealth.Checks[0].OffsetFromAuditHost);
+            Assert.Equal(ClockCheckStatus.Skipped, output.ClockHealth.Checks[1].Status);
+            Assert.Null(output.ClockHealth.Checks[1].OffsetFromAuditHost);
+        }
+
+        [Fact]
         public void Rebuild_replays_current_detectors_on_a_snapshot_read_from_file()
         {
             // « Ouvrir un audit JSON » (v0.8.0) : un fichier archivé sans relatedHost ni

@@ -73,6 +73,8 @@ namespace ADReplic.Core.Diagnostics.Issues
             yield return new PortClosedOrFilteredDetector();
             // Détection croisée DNS/Ports (silencieux si l'une des deux sondes est absente)
             yield return new DnsSrvPointsToDeadDcDetector();
+            // Horloges (v0.8.0, silencieux si ClockHealth == null)
+            yield return new ClockSkewDetector();
         }
     }
 }

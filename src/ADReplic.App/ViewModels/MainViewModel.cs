@@ -15,6 +15,7 @@ using ADReplic.Core.Diagnostics;
 using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Discovery;
 using ADReplic.Core.Export;
+using ADReplic.Core.Health.Clock;
 using ADReplic.Core.Health.Dns;
 using ADReplic.Core.Health.Ports;
 using ADReplic.Core.Models;
@@ -52,6 +53,8 @@ namespace ADReplic.App.ViewModels
         private TopologySnapshot _topology;
         private DnsHealthResult _lastDnsHealth;
         private PortHealthResult _lastPortHealth;
+        private ClockHealthResult _lastClockHealth;
+        private readonly ClockHealthProbe _clockHealthProbe = new ClockHealthProbe(new LdapRootDseClockReader());
         private HealthScore _healthScore;
 
         // === Lisibilité (v0.7.0) ============================================
@@ -536,6 +539,7 @@ namespace ADReplic.App.ViewModels
             _topology = null;
             _lastDnsHealth = null;
             _lastPortHealth = null;
+            _lastClockHealth = null;
             _lastAuditWasSingleDc = false;
             ForestName = null;
             HealthScore = null;
@@ -591,6 +595,7 @@ namespace ADReplic.App.ViewModels
             foreach (var f in snapshot.ReplicationFailures) ReplicationFailures.Add(f);
             _lastDnsHealth = snapshot.DnsHealth;
             _lastPortHealth = snapshot.PortHealth;
+            _lastClockHealth = snapshot.ClockHealth;
             if (_lastDnsHealth?.Checks != null)
                 foreach (var c in _lastDnsHealth.Checks) DnsChecks.Add(c);
             if (_lastPortHealth?.Checks != null)
@@ -653,13 +658,15 @@ namespace ADReplic.App.ViewModels
                     var failures = await _failureProbe.GetFailuresAsync(dcs, context, cts.Token);
                     foreach (var f in failures) ReplicationFailures.Add(f);
 
-                    StatusMessage = "Sondage DNS et réseau...";
+                    StatusMessage = "Sondage DNS, réseau et horloges...";
                     var dnsTask = ProbeDnsAsync(dcs, cts.Token);
                     var portTask = _portHealthProbe.ProbeAsync(
                         dcs, AdServicePorts.Default, PortHealthProbe.DefaultPerPortTimeout, cts.Token);
-                    await Task.WhenAll(dnsTask, portTask).ConfigureAwait(true);
+                    var clockTask = _clockHealthProbe.ProbeAsync(dcs, cts.Token);
+                    await Task.WhenAll(dnsTask, portTask, clockTask).ConfigureAwait(true);
                     _lastDnsHealth = await dnsTask;
                     _lastPortHealth = await portTask;
+                    _lastClockHealth = await clockTask;
                     if (_lastDnsHealth?.Checks != null)
                         foreach (var c in _lastDnsHealth.Checks) DnsChecks.Add(c);
                     if (_lastPortHealth?.Checks != null)
@@ -669,7 +676,7 @@ namespace ADReplic.App.ViewModels
 
                     var snapshot = AuditSnapshotBuilder.Build(
                         ForestName, dcs, links, _topology, failures, singleDcMode,
-                        _lastDnsHealth, _lastPortHealth);
+                        _lastDnsHealth, _lastPortHealth, _lastClockHealth);
                     ApplyConclusions(snapshot);
 
                     _lastAuditWasSingleDc = singleDcMode;
@@ -739,7 +746,8 @@ namespace ADReplic.App.ViewModels
                     ReplicationFailures.ToList(),
                     _lastAuditWasSingleDc,
                     _lastDnsHealth,
-                    _lastPortHealth);
+                    _lastPortHealth,
+                    _lastClockHealth);
                 exporter.Export(snapshot, target);
                 StatusMessage = $"Export {exporter.Format} : {target}";
             }

@@ -131,7 +131,12 @@ namespace ADReplic.Core.Diagnostics.Issues
                 ["DNS_SRV_POINTS_TO_DEAD_DC"] = E(
                     "Les clients qui tirent ce DC au sort dans le DNS attendent le timeout avant de basculer sur un autre : ouvertures de session et applications LDAP ralenties de façon aléatoire. Un DC fantôme dans le DNS est aussi une source classique d'échecs de réplication persistants.",
                     "1. Déterminer si le DC est en panne temporaire ou retiré définitivement.\n2. Panne temporaire : le remettre en service, les enregistrements redeviendront valides.\n3. Retrait définitif : nettoyer ses métadonnées (ntdsutil metadata cleanup) puis supprimer ses enregistrements SRV, A et CNAME (_msdcs) dans le DNS.",
-                    Learn + "troubleshoot/windows-server/active-directory/remove-data-after-ad-ds-installation-fails")
+                    Learn + "troubleshoot/windows-server/active-directory/remove-data-after-ad-ds-installation-fails"),
+
+                ["DC_CLOCK_SKEW"] = E(
+                    "Kerberos tolère 5 minutes d'écart au maximum : au-delà, les tickets sont rejetés. Les utilisateurs du site de ce DC n'arrivent plus à ouvrir de session, les applications reçoivent des erreurs d'authentification intermittentes et la réplication avec ce DC échoue (erreurs « clock skew too great »).",
+                    "1. Sur le DC décalé : w32tm /query /status et w32tm /query /source pour voir d'où il prend l'heure.\n2. Vérifier que le maître PDC est synchronisé sur une source externe fiable (NTP) et que les autres DC suivent la hiérarchie du domaine (w32tm /config /syncfromflags:domhier).\n3. Si le DC est une machine virtuelle : désactiver la synchronisation d'horloge de l'hyperviseur sur les DC, ou la rendre cohérente avec la hiérarchie AD.\n4. Resynchroniser : w32tm /resync /force, puis relancer l'audit.",
+                    Learn + "windows-server/networking/windows-time-service/windows-time-service-tools-and-settings")
             };
         }
     }

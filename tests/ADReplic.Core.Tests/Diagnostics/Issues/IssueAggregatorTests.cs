@@ -98,14 +98,15 @@ namespace ADReplic.Core.Tests.Diagnostics.Issues
         }
 
         [Fact]
-        public void Default_aggregator_runs_fifteen_detectors()
+        public void Default_aggregator_runs_sixteen_detectors()
         {
             var defaults = IssueAggregator.BuildDefaultDetectors().ToList();
             // 7 détecteurs historiques (topologie/OS/réplication) + 4 DNS + 2 Ports
-            // + DC_UNREACHABLE + détection croisée DNS_SRV_POINTS_TO_DEAD_DC = 15.
+            // + DC_UNREACHABLE + détection croisée DNS_SRV_POINTS_TO_DEAD_DC
+            // + DC_CLOCK_SKEW (v0.8.0, silencieux sans sonde d'horloge) = 16.
             // Ce test est volontairement strict pour forcer une réflexion explicite
             // à chaque ajout : tout nouveau détecteur doit-il être activé par défaut ?
-            Assert.Equal(15, defaults.Count);
+            Assert.Equal(16, defaults.Count);
         }
 
         [Fact]
