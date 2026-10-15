@@ -31,6 +31,19 @@ namespace ADReplic.App.ViewModels
             => value is Visibility v && v == Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// Vrai si les deux valeurs liées sont le même objet. Sert à surligner, dans une
+    /// liste sans sélection native (ItemsControl), l'élément égal à la sélection du VM.
+    /// </summary>
+    public sealed class SameReferenceConverter : IMultiValueConverter
+    {
+        public static readonly SameReferenceConverter Instance = new SameReferenceConverter();
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+            => values != null && values.Length == 2 && values[0] != null && ReferenceEquals(values[0], values[1]);
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     /// <summary>Durée en français lisible ("3 j 4 h", "45 min") via le formateur Core.</summary>
     public sealed class DurationToHumanTextConverter : IValueConverter
     {

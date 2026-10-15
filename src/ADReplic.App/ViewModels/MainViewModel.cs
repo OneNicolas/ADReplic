@@ -138,6 +138,7 @@ namespace ADReplic.App.ViewModels
             CopyTextCommand              = new RelayCommand<string>(CopyText, t => !string.IsNullOrEmpty(t));
             CloseFailureDetailCommand    = new RelayCommand<object>(_ => SelectedFailure = null);
             CloseIssueDetailCommand      = new RelayCommand<object>(_ => { SelectedIssueRow = null; SelectedIssue = null; });
+            SelectIssueCommand           = new RelayCommand<DetectedIssue>(issue => SelectedIssue = issue, issue => issue != null);
 
             StatusMessage = "Prêt — cliquez sur Actualiser pour lancer un audit.";
         }
@@ -178,6 +179,8 @@ namespace ADReplic.App.ViewModels
         public ICommand CopyTextCommand { get; }
         public ICommand CloseFailureDetailCommand { get; }
         public ICommand CloseIssueDetailCommand { get; }
+        /// <summary>Sélectionne une conséquence depuis la liste dépliée de l'onglet Diagnostics (v0.8.0).</summary>
+        public ICommand SelectIssueCommand { get; }
 
         // === Sous-VMs =======================================================
         public CompareViewModel Compare { get; }

@@ -773,30 +773,58 @@
                                          d'un enfant alimente SelectedIssue (panneau de détail + Copier le diagnostic). -->
                                     <DataGrid.RowDetailsTemplate>
                                         <DataTemplate>
-                                            <Border Background="{DynamicResource SurfaceAlt}" Padding="36,0,0,6"
+                                            <!-- Pas de DataGrid imbriqué : il aurait son propre scroll (la molette ne
+                                                 remonterait pas à la grille principale) et sa propre sélection en concurrence
+                                                 avec celle du parent. Une ligne = un bouton transparent qui sélectionne l'anomalie. -->
+                                            <Border Background="{DynamicResource SurfaceAlt}" Padding="36,2,0,6"
                                                     BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
-                                                <DataGrid ItemsSource="{Binding Children}"
-                                                          SelectedItem="{Binding DataContext.SelectedIssue, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
-                                                          SelectionMode="Single" IsReadOnly="True"
-                                                          HeadersVisibility="None" AutoGenerateColumns="False"
-                                                          CanUserSortColumns="False" CanUserResizeColumns="False"
-                                                          Background="Transparent" BorderThickness="0"
-                                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                                    <DataGrid.Columns>
-                                                        <DataGridTemplateColumn Width="36">
-                                                            <DataGridTemplateColumn.CellTemplate>
-                                                                <DataTemplate>
-                                                                    <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                <ItemsControl ItemsSource="{Binding Children}" Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Command="{Binding DataContext.SelectIssueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}" Cursor="Hand" Focusable="False"
+                                                                    HorizontalContentAlignment="Stretch" Padding="0" Margin="0" BorderThickness="0">
+                                                                <Button.Template>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border x:Name="Bd" Background="Transparent" Padding="0,5">
+                                                                            <ContentPresenter />
+                                                                        </Border>
+                                                                        <ControlTemplate.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowHover}" />
+                                                                            </Trigger>
+                                                                            <DataTrigger Value="True">
+                                                                                <DataTrigger.Binding>
+                                                                                    <MultiBinding Converter="{x:Static vm:SameReferenceConverter.Instance}">
+                                                                                        <Binding />
+                                                                                        <Binding Path="DataContext.SelectedIssue" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                    </MultiBinding>
+                                                                                </DataTrigger.Binding>
+                                                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowSelected}" />
+                                                                            </DataTrigger>
+                                                                        </ControlTemplate.Triggers>
+                                                                    </ControlTemplate>
+                                                                </Button.Template>
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="36" />
+                                                                        <ColumnDefinition Width="90" />
+                                                                        <ColumnDefinition Width="220" />
+                                                                        <ColumnDefinition Width="320" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Ellipse Grid.Column="0" Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                                              Fill="{Binding Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
-                                                                </DataTemplate>
-                                                            </DataGridTemplateColumn.CellTemplate>
-                                                        </DataGridTemplateColumn>
-                                                        <DataGridTextColumn Binding="{Binding Severity}" Width="90" />
-                                                        <DataGridTextColumn Binding="{Binding Code}"     Width="220" />
-                                                        <DataGridTextColumn Binding="{Binding Title}"    Width="320" />
-                                                        <DataGridTextColumn Binding="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" />
-                                                    </DataGrid.Columns>
-                                                </DataGrid>
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Severity}" Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource Foreground}" />
+                                                                    <TextBlock Grid.Column="2" Text="{Binding Code}"     Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource Foreground}" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Grid.Column="3" Text="{Binding Title}"    Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource Foreground}" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Grid.Column="4" Text="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}"
+                                                                               Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource SubtleText}" TextTrimming="CharacterEllipsis" />
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
                                             </Border>
                                         </DataTemplate>
                                     </DataGrid.RowDetailsTemplate>
