@@ -709,27 +709,97 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <DataGrid Grid.Row="0" x:Name="IssuesGrid" ItemsSource="{Binding Issues}"
-                                          SelectedItem="{Binding SelectedIssue, Mode=TwoWay}"
+                                <!-- v0.8.0 : lignes = IssueRowViewModel (anomalie + conséquences repliées
+                                     d'un DC injoignable). La liste plate Issues reste la source des exports. -->
+                                <DataGrid Grid.Row="0" x:Name="IssuesGrid" ItemsSource="{Binding IssueRows}"
+                                          SelectedItem="{Binding SelectedIssueRow, Mode=TwoWay}"
                                           SelectionMode="Single" IsReadOnly="True"
                                           CanUserResizeColumns="True" CanUserSortColumns="True"
-                                          CanUserReorderColumns="True">
+                                          CanUserReorderColumns="True"
+                                          RowDetailsVisibilityMode="Collapsed">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                    <Setter Property="DetailsVisibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
                                     <DataGrid.Columns>
                                         <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <Ellipse Width="10" Height="10"
                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                             Fill="{Binding Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
+                                                             Fill="{Binding Issue.Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
-                                        <DataGridTextColumn Header="Sévérité"           Binding="{Binding Severity}" Width="90"  MinWidth="70"  SortMemberPath="Severity" />
-                                        <DataGridTextColumn Header="Code"               Binding="{Binding Code}"     Width="220" MinWidth="140" SortMemberPath="Code" />
-                                        <DataGridTextColumn Header="Anomalie"           Binding="{Binding Title}"    Width="320" MinWidth="180" SortMemberPath="Title" />
-                                        <DataGridTextColumn Header="Éléments concernés" Binding="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
-                                        <DataGridTextColumn Header="Constat"            Binding="{Binding Description}" Width="*" MinWidth="260" />
+                                        <DataGridTextColumn Header="Sévérité" Binding="{Binding Issue.Severity}" Width="90"  MinWidth="70"  SortMemberPath="Issue.Severity" />
+                                        <DataGridTextColumn Header="Code"     Binding="{Binding Issue.Code}"     Width="220" MinWidth="140" SortMemberPath="Issue.Code" />
+                                        <DataGridTemplateColumn Header="Anomalie" Width="320" MinWidth="180" SortMemberPath="Issue.Title">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Issue.Title}" TextTrimming="CharacterEllipsis" />
+                                                        <!-- Bouton texte « ▸ 10 anomalies liées à … » : déplie les conséquences sous la ligne. -->
+                                                        <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                                      Visibility="{Binding HasChildren, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
+                                                                      HorizontalAlignment="Left" Cursor="Hand" Focusable="False"
+                                                                      Background="Transparent" BorderThickness="0" Padding="0" Margin="0,2,0,0"
+                                                                      ToolTip="Afficher ou masquer les anomalies qui découlent de l'indisponibilité de ce DC">
+                                                            <ToggleButton.Template>
+                                                                <ControlTemplate TargetType="ToggleButton">
+                                                                    <TextBlock FontSize="11" Foreground="{DynamicResource Accent}">
+                                                                        <Run x:Name="Arrow" Text="▸ " /><Run Text="{Binding DerivedSummary, Mode=OneWay}" />
+                                                                    </TextBlock>
+                                                                    <ControlTemplate.Triggers>
+                                                                        <Trigger Property="IsChecked" Value="True">
+                                                                            <Setter TargetName="Arrow" Property="Text" Value="▾ " />
+                                                                        </Trigger>
+                                                                    </ControlTemplate.Triggers>
+                                                                </ControlTemplate>
+                                                            </ToggleButton.Template>
+                                                        </ToggleButton>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Éléments concernés" Binding="{Binding Issue.AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
+                                        <DataGridTextColumn Header="Constat"            Binding="{Binding Issue.Description}" Width="*" MinWidth="260" />
                                     </DataGrid.Columns>
+                                    <!-- Conséquences du DC injoignable : grille sans en-tête, en retrait ; la sélection
+                                         d'un enfant alimente SelectedIssue (panneau de détail + Copier le diagnostic). -->
+                                    <DataGrid.RowDetailsTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource SurfaceAlt}" Padding="36,0,0,6"
+                                                    BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
+                                                <DataGrid ItemsSource="{Binding Children}"
+                                                          SelectedItem="{Binding DataContext.SelectedIssue, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                                          SelectionMode="Single" IsReadOnly="True"
+                                                          HeadersVisibility="None" AutoGenerateColumns="False"
+                                                          CanUserSortColumns="False" CanUserResizeColumns="False"
+                                                          Background="Transparent" BorderThickness="0"
+                                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTemplateColumn Width="36">
+                                                            <DataGridTemplateColumn.CellTemplate>
+                                                                <DataTemplate>
+                                                                    <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                             Fill="{Binding Severity, Converter={x:Static vm:IssueSeverityToBrushConverter.Instance}}" />
+                                                                </DataTemplate>
+                                                            </DataGridTemplateColumn.CellTemplate>
+                                                        </DataGridTemplateColumn>
+                                                        <DataGridTextColumn Binding="{Binding Severity}" Width="90" />
+                                                        <DataGridTextColumn Binding="{Binding Code}"     Width="220" />
+                                                        <DataGridTextColumn Binding="{Binding Title}"    Width="320" />
+                                                        <DataGridTextColumn Binding="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGrid.RowDetailsTemplate>
                                 </DataGrid>
 
                                 <TextBlock Grid.Row="0" Text="✓ Aucune anomalie de configuration détectée."

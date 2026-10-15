@@ -58,6 +58,7 @@ namespace ADReplic.App.ViewModels
         private string _auditSummary;
         private ReplicationFailureInfo _selectedFailure;
         private DetectedIssue _selectedIssue;
+        private IssueRowViewModel _selectedIssueRow;
 
         // === Monitoring state ===============================================
         private bool _isAutoRefreshEnabled;
@@ -99,6 +100,7 @@ namespace ADReplic.App.ViewModels
             Sites = new ObservableCollection<SiteInfo>();
             SiteLinks = new ObservableCollection<SiteLinkInfo>();
             Issues = new ObservableCollection<DetectedIssue>();
+            IssueRows = new ObservableCollection<IssueRowViewModel>();
             DnsChecks = new ObservableCollection<DnsCheckResult>();
             PortChecks = new ObservableCollection<PortCheckResult>();
             ScoreHistoryEntries = new ObservableCollection<ScoreHistoryEntry>();
@@ -145,6 +147,8 @@ namespace ADReplic.App.ViewModels
         public ObservableCollection<SiteInfo> Sites { get; }
         public ObservableCollection<SiteLinkInfo> SiteLinks { get; }
         public ObservableCollection<DetectedIssue> Issues { get; }
+        /// <summary>Vue agrégée de <see cref="Issues"/> pour l'onglet Diagnostics (v0.8.0).</summary>
+        public ObservableCollection<IssueRowViewModel> IssueRows { get; }
         public ObservableCollection<DnsCheckResult> DnsChecks { get; }
         public ObservableCollection<PortCheckResult> PortChecks { get; }
 
@@ -312,6 +316,11 @@ namespace ADReplic.App.ViewModels
             {
                 if (SetProperty(ref _selectedIssue, value))
                 {
+                    // Une conséquence sélectionnée dans la liste repliée n'appartient à
+                    // aucune ligne parente : on désélectionne la grille principale pour
+                    // que le panneau de détail n'ait qu'une seule source visible.
+                    if (value != null && !ReferenceEquals(_selectedIssueRow?.Issue, value))
+                        SelectedIssueRow = null;
                     RaisePropertyChanged(nameof(HasSelectedIssue));
                     CommandManager.InvalidateRequerySuggested();
                 }
@@ -319,6 +328,17 @@ namespace ADReplic.App.ViewModels
         }
 
         public bool HasSelectedIssue => _selectedIssue != null;
+
+        /// <summary>Ligne sélectionnée dans la grille Diagnostics ; alimente <see cref="SelectedIssue"/>.</summary>
+        public IssueRowViewModel SelectedIssueRow
+        {
+            get => _selectedIssueRow;
+            set
+            {
+                if (SetProperty(ref _selectedIssueRow, value) && value != null)
+                    SelectedIssue = value.Issue;
+            }
+        }
 
         // === Props (nouvelles v0.5.0) =======================================
 
@@ -474,6 +494,7 @@ namespace ADReplic.App.ViewModels
             Sites.Clear();
             SiteLinks.Clear();
             Issues.Clear();
+            IssueRows.Clear();
             DnsChecks.Clear();
             PortChecks.Clear();
             _topology = null;
@@ -484,6 +505,7 @@ namespace ADReplic.App.ViewModels
             HealthScore = null;
             AuditSummary = null;
             SelectedFailure = null;
+            SelectedIssueRow = null;
             SelectedIssue = null;
 
             var singleDcMode = IsSingleDcMode;
@@ -547,6 +569,7 @@ namespace ADReplic.App.ViewModels
                         _lastDnsHealth, _lastPortHealth);
                     HealthScore = snapshot.HealthScore;
                     foreach (var issue in snapshot.Issues) Issues.Add(issue);
+                    foreach (var group in IssueGrouper.Group(snapshot.Issues)) IssueRows.Add(new IssueRowViewModel(group));
                     AuditSummary = AuditSummaryWriter.Write(snapshot);
 
                     _lastAuditWasSingleDc = singleDcMode;
