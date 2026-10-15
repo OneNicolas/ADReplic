@@ -26,34 +26,44 @@ namespace ADReplic.App.Views
 
         /// <summary>
         /// Les panneaux de détail s'ouvrent plafonnés (MaxHeight en XAML) pour ne pas
-        /// écraser la grille. Quand l'utilisateur saisit la poignée, c'est lui qui
-        /// décide de la taille : on lève le plafond, sinon la ligne de grille grandit
-        /// mais le panneau reste à 320 px, centré dans le vide. À la fermeture du
-        /// panneau on rétablit le plafond et on rend la ligne à son mode Auto, sans
-        /// quoi la hauteur fixée par la poignée laisserait un trou sous la grille.
+        /// écraser la grille. La poignée règle ensuite UNIQUEMENT la hauteur du panneau,
+        /// bornée entre un minimum lisible et l'espace disponible (la grille garde sa
+        /// hauteur minimale) ; la ligne * de la grille absorbe toujours le reste, donc
+        /// la zone suit la fenêtre. Un GridSplitter aurait figé les deux lignes en
+        /// pixels : après un glissement, le bas du panneau sortait de la carte et le
+        /// scroll ne pouvait plus atteindre la fin. À la fermeture, le panneau reprend
+        /// sa taille d'ouverture.
         /// </summary>
-        private static void WireDetailPanelResize(GridSplitter splitter, FrameworkElement panel)
+        private static void WireDetailPanelResize(Thumb splitter, FrameworkElement panel)
         {
+            const double minPanelHeight = 80;
             var openingMaxHeight = panel.MaxHeight;
+            var grid = (Grid)panel.Parent;
 
-            splitter.DragStarted += (_, __) =>
+            double MaxPanelHeight()
+                => Math.Max(minPanelHeight, grid.ActualHeight - grid.RowDefinitions[0].MinHeight - splitter.ActualHeight);
+
+            splitter.DragDelta += (_, e) =>
             {
-                // Figer d'abord la ligne à sa hauteur courante : sinon, entre la levée du
-                // plafond et le premier mouvement, la ligne Auto prendrait toute la hauteur du contenu.
-                DetailRowOf(panel).Height = new GridLength(panel.ActualHeight);
+                var wanted = panel.ActualHeight - e.VerticalChange;
                 panel.MaxHeight = double.PositiveInfinity;
+                panel.Height = Math.Min(Math.Max(minPanelHeight, wanted), MaxPanelHeight());
+            };
+
+            // Fenêtre réduite après un glissement : le panneau ne doit pas pousser la grille sous son minimum.
+            grid.SizeChanged += (_, __) =>
+            {
+                if (!double.IsNaN(panel.Height) && panel.Height > MaxPanelHeight())
+                    panel.Height = MaxPanelHeight();
             };
 
             panel.IsVisibleChanged += (_, e) =>
             {
                 if ((bool)e.NewValue) return;
+                panel.ClearValue(HeightProperty);
                 panel.MaxHeight = openingMaxHeight;
-                DetailRowOf(panel).ClearValue(RowDefinition.HeightProperty);
             };
         }
-
-        private static RowDefinition DetailRowOf(FrameworkElement panel)
-            => ((Grid)panel.Parent).RowDefinitions[Grid.GetRow(panel)];
 
         /// <summary>
         /// Déplie/replie les conséquences d'un DC injoignable (onglet Diagnostics).

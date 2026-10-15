@@ -571,9 +571,16 @@
                                 </Border>
 
                                 <!-- Panneau de détail (v0.7.0) : visible uniquement avec une sélection. -->
-                                <GridSplitter x:Name="FailureDetailSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
-                                              Background="{DynamicResource Border}" ResizeBehavior="PreviousAndNext"
-                                              Visibility="{Binding HasSelectedFailure, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                <!-- Thumb et non GridSplitter : ce dernier figerait aussi la ligne * de la grille en pixels,
+                                     et la zone ne suivrait plus la fenêtre (bas du panneau coupé). Code-behind : WireDetailPanelResize. -->
+                                <Thumb x:Name="FailureDetailSplitter" Grid.Row="1" Height="5" Cursor="SizeNS" Focusable="False"
+                                       Visibility="{Binding HasSelectedFailure, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border Background="{DynamicResource Border}" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
                                 <!-- Visibility resolue contre le DataContext de la fenetre : sur ce Border le
                                      DataContext est remplace par la selection (null = binding muet = visible).
                                      MaxHeight = taille d'ouverture ; la poignee la leve (code-behind). -->
@@ -858,9 +865,14 @@
                                 </Border>
 
                                 <!-- Panneau de détail (v0.7.0) : constat / pourquoi / que faire. -->
-                                <GridSplitter x:Name="IssueDetailSplitter" Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
-                                              Background="{DynamicResource Border}" ResizeBehavior="PreviousAndNext"
-                                              Visibility="{Binding HasSelectedIssue, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                <Thumb x:Name="IssueDetailSplitter" Grid.Row="1" Height="5" Cursor="SizeNS" Focusable="False"
+                                       Visibility="{Binding HasSelectedIssue, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border Background="{DynamicResource Border}" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
                                 <Border x:Name="IssueDetailPanel" Grid.Row="2" Padding="14,6,14,12" MaxHeight="320"
                                         Visibility="{Binding DataContext.HasSelectedIssue, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
                                         DataContext="{Binding SelectedIssue}">
