@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using ADReplic.Core.Export;
 using ADReplic.Core.Models;
 using Xunit;
@@ -299,6 +300,87 @@ namespace ADReplic.Core.Tests.Export
 
             var content = File.ReadAllText(target);
             Assert.Contains("\"issues\"", content);
+        }
+
+        [Fact]
+        public void Json_export_excludes_computed_error_explanation()
+        {
+            // La fiche explicative est recalculée depuis le catalogue à la lecture :
+            // la sérialiser gonflerait chaque audit et figerait un texte susceptible d'évoluer.
+            var snapshot = BuildSampleSnapshot();
+            snapshot.ReplicationFailures = new[]
+            {
+                new ReplicationFailureInfo
+                {
+                    DestinationDc = "DC01", SourceDc = "DC02",
+                    FirstFailureTime = System.DateTime.Now.AddHours(-2),
+                    ConsecutiveFailureCount = 3, LastErrorCode = 1722,
+                    LastErrorMessage = "Le serveur RPC n'est pas disponible."
+                }
+            };
+            var target = Path.Combine(_tempDir, "audit.json");
+            new JsonAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.DoesNotContain("\"explanation\"", content);
+            Assert.DoesNotContain("\"errorTitle\"", content);
+            Assert.DoesNotContain("probableCauses", content);
+            // Le reste de l'echec reste bien exporte.
+            Assert.Contains("\"lastErrorCode\"", content);
+        }
+
+        [Fact]
+        public void Html_export_includes_plain_summary_and_remediation()
+        {
+            var snapshot = BuildSampleSnapshot();
+            snapshot.ReplicationFailures = new[]
+            {
+                new ReplicationFailureInfo
+                {
+                    DestinationDc = "DC01", SourceDc = "DC02",
+                    FirstFailureTime = System.DateTime.Now.AddDays(-3),
+                    ConsecutiveFailureCount = 3, LastErrorCode = 1722
+                }
+            };
+            var target = Path.Combine(_tempDir, "audit.html");
+            new HtmlAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("plain-summary", content);
+            Assert.Contains("1 échec de réplication", content);
+            Assert.Contains("Serveur RPC injoignable", content);
+            Assert.Contains("Comment corriger", content);
+            Assert.Contains("<details", content);
+            Assert.Contains("learn.microsoft.com", content);
+        }
+
+        [Fact]
+        public void Html_export_shows_issue_impact_and_recommendation_columns()
+        {
+            // Un DC sous OS obsolete declenche OS_UNSUPPORTED via le builder.
+            var snapshot = BuildSampleSnapshot();
+            var dc = new DomainControllerInfo { HostName = "dc-old.exemple.local", Domain = "exemple.local", OSVersion = "Windows Server 2008 R2" };
+            snapshot = AuditSnapshotBuilder.Build("exemple.local", new[] { dc }, new ReplicationLink[0]);
+            var target = Path.Combine(_tempDir, "audit.html");
+            new HtmlAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("Pourquoi c'est important", content);
+            Assert.Contains("Que faire", content);
+            Assert.Contains("<ol class=\"steps\">", content);
+        }
+
+        [Fact]
+        public void Csv_issues_and_failures_files_have_readability_columns_appended()
+        {
+            var basePath = Path.Combine(_tempDir, "audit");
+            new CsvAuditExporter().Export(BuildSampleSnapshot(), basePath);
+
+            var issuesHeader = File.ReadLines(basePath + ".issues.csv").First();
+            Assert.EndsWith("Impact;Recommendation;DocumentationUrl", issuesHeader.Replace(",", ";"));
+
+            var failuresHeader = File.ReadLines(basePath + ".failures.csv").First();
+            Assert.EndsWith("ErrorTitle;DocumentationUrl", failuresHeader.Replace(",", ";"));
         }
 
         [Fact]

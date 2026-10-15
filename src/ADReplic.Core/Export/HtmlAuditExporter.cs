@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using ADReplic.Core.Abstractions;
+using ADReplic.Core.Diagnostics;
 using ADReplic.Core.Diagnostics.Issues;
 using ADReplic.Core.Models;
 
@@ -39,6 +40,7 @@ namespace ADReplic.Core.Export
             sb.AppendLine("</head><body>");
 
             AppendHeader(sb, s);
+            AppendPlainSummary(sb, s);
             AppendSummaryCards(sb, s.Summary);
             AppendDiagnosticsSection(sb, s.Issues);
             AppendDnsHealthSection(sb, s.DnsHealth);
@@ -77,6 +79,18 @@ namespace ADReplic.Core.Export
             sb.AppendFormat("    <div class=\"hb-meta\"><div class=\"hb-label\">{0}</div><div class=\"hb-summary\">{1}</div></div>",
                 Encode(score.Label), Encode(score.Summary)).AppendLine();
             sb.AppendLine("  </div>");
+        }
+
+        /// <summary>Phrase de synthèse en français clair (v0.7.0), même source que le bandeau de la GUI.</summary>
+        private static void AppendPlainSummary(StringBuilder sb, AuditSnapshot s)
+        {
+            var text = AuditSummaryWriter.Write(s);
+            if (string.IsNullOrEmpty(text)) return;
+            var cls = s.HealthScore == null ? "neutral"
+                    : s.HealthScore.Level == HealthLevel.Excellent ? "ok"
+                    : s.HealthScore.Level == HealthLevel.Warning   ? "warn"
+                    : "fail";
+            sb.AppendFormat("<div class=\"banner {0} plain-summary\">{1}</div>", cls, Encode(text)).AppendLine();
         }
 
         private static void AppendSummaryCards(StringBuilder sb, AuditSummary sum)
@@ -183,7 +197,7 @@ namespace ADReplic.Core.Export
             }
 
             sb.AppendLine("<table><thead><tr>");
-            sb.AppendLine("<th></th><th>Sévérité</th><th>Code</th><th>Anomalie</th><th>Éléments concernés</th><th>Recommandation</th>");
+            sb.AppendLine("<th></th><th>Sévérité</th><th>Code</th><th>Anomalie</th><th>Éléments concernés</th><th>Constat</th><th>Pourquoi c'est important</th><th>Que faire</th>");
             sb.AppendLine("</tr></thead><tbody>");
             foreach (var issue in issues)
             {
@@ -194,6 +208,8 @@ namespace ADReplic.Core.Export
                 sb.AppendFormat("<td>{0}</td>", Encode(issue.Title));
                 sb.AppendFormat("<td>{0}</td>", FormatList(issue.AffectedItems));
                 sb.AppendFormat("<td>{0}</td>", Encode(issue.Description));
+                sb.AppendFormat("<td>{0}</td>", Encode(issue.Impact));
+                sb.AppendFormat("<td>{0}{1}</td>", FormatSteps(issue.Recommendation), FormatDocLink(issue.DocumentationUrl));
                 sb.AppendLine("</tr>");
             }
             sb.AppendLine("</tbody></table></section>");
@@ -341,21 +357,88 @@ namespace ADReplic.Core.Export
             }
 
             sb.AppendLine("<table><thead><tr>");
-            sb.AppendLine("<th></th><th>Destination</th><th>Source</th><th>Premier échec</th><th>Durée</th><th>Tentatives</th><th>Erreur</th>");
+            sb.AppendLine("<th></th><th>Destination</th><th>Source</th><th>Premier échec</th><th>Durée</th><th>Tentatives</th><th>Erreur</th><th>Ce que cela signifie</th>");
             sb.AppendLine("</tr></thead><tbody>");
             foreach (var f in failures)
             {
+                var x = f.Explanation;
                 sb.Append("<tr>");
                 sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", SeverityDotClass(f.Severity));
                 sb.AppendFormat("<td>{0}</td>", Encode(f.DestinationDc));
                 sb.AppendFormat("<td>{0}</td>", Encode(f.SourceDc));
                 sb.AppendFormat("<td>{0}</td>", FormatDate(f.FirstFailureTime));
-                sb.AppendFormat("<td>{0}</td>", FormatLatency(f.FailureDuration));
+                sb.AppendFormat("<td>{0}</td>", Encode(DurationFormatter.ToHumanText(f.FailureDuration)));
                 sb.AppendFormat("<td class=\"num\">{0}</td>", f.ConsecutiveFailureCount);
-                sb.AppendFormat("<td>{0}</td>", Encode(f.LastErrorMessage));
+                sb.AppendFormat("<td><strong>{0}</strong><br><span class=\"muted mono\">{1} · {2}</span></td>",
+                    Encode(x.Title), f.LastErrorCode, Encode(f.LastErrorMessage));
+                sb.AppendFormat("<td>{0}{1}</td>", Encode(x.Explanation), FormatDocLink(x.DocumentationUrl));
                 sb.AppendLine("</tr>");
             }
-            sb.AppendLine("</tbody></table></section>");
+            sb.AppendLine("</tbody></table>");
+            AppendFailureRemediationDetails(sb, failures);
+            sb.AppendLine("</section>");
+        }
+
+        /// <summary>
+        /// Un bloc repliable par code d'erreur distinct (pas par échec : dix échecs 1722
+        /// n'ont qu'une seule fiche) avec causes, vérifications et commandes.
+        /// </summary>
+        private static void AppendFailureRemediationDetails(StringBuilder sb, IReadOnlyList<ReplicationFailureInfo> failures)
+        {
+            var explanations = failures
+                .Select(f => f.Explanation)
+                .GroupBy(x => x.Code)
+                .Select(g => g.First())
+                .Where(x => x.IsKnown)
+                .ToList();
+            if (explanations.Count == 0) return;
+
+            sb.AppendLine("<h3>Comment corriger</h3>");
+            foreach (var x in explanations)
+            {
+                sb.AppendFormat("<details class=\"remediation\"><summary>{0} <span class=\"muted mono\">(code {1})</span></summary>",
+                    Encode(x.Title), x.Code).AppendLine();
+                if (x.ProbableCauses.Count > 0)
+                {
+                    sb.AppendLine("<p class=\"sub\">Causes probables</p><ul>");
+                    foreach (var c in x.ProbableCauses) sb.AppendFormat("<li>{0}</li>", Encode(c));
+                    sb.AppendLine("</ul>");
+                }
+                if (x.Checks.Count > 0)
+                {
+                    sb.AppendLine("<p class=\"sub\">Que vérifier</p><ol>");
+                    foreach (var c in x.Checks) sb.AppendFormat("<li>{0}</li>", Encode(c));
+                    sb.AppendLine("</ol>");
+                }
+                if (x.Commands.Count > 0)
+                {
+                    sb.AppendLine("<p class=\"sub\">Commandes</p><ul class=\"cmds\">");
+                    foreach (var c in x.Commands) sb.AppendFormat("<li><code>{0}</code></li>", Encode(c));
+                    sb.AppendLine("</ul>");
+                }
+                sb.Append(FormatDocLink(x.DocumentationUrl));
+                sb.AppendLine("</details>");
+            }
+        }
+
+        /// <summary>"1. ...\n2. ..." vers une liste numérotée HTML ; texte simple sinon.</summary>
+        private static string FormatSteps(string recommendation)
+        {
+            if (string.IsNullOrWhiteSpace(recommendation)) return "";
+            var lines = recommendation.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                                      .Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+            if (lines.Count <= 1) return Encode(recommendation);
+
+            var sb = new StringBuilder("<ol class=\"steps\">");
+            foreach (var l in lines)
+                sb.AppendFormat("<li>{0}</li>", Encode(System.Text.RegularExpressions.Regex.Replace(l, @"^\d+\.\s*", "")));
+            return sb.Append("</ol>").ToString();
+        }
+
+        private static string FormatDocLink(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return "";
+            return string.Format("<p class=\"doclink\"><a href=\"{0}\" target=\"_blank\" rel=\"noopener\">Documentation Microsoft ↗</a></p>", Encode(url));
         }
 
         private static string SeverityDotClass(ReplicationFailureSeverity s)
@@ -521,6 +604,23 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .health-badge .hb-label { font-size: 13px; font-weight: 600; }
 .health-badge .hb-summary { font-size: 12px; opacity: 0.92; margin-top: 2px; }
 footer { padding: 18px 32px; color: #6e7781; font-size: 12px; border-top: 1px solid #d0d7de; }
+/* v0.7.0 : lisibilite */
+.banner.neutral { background: #f6f8fa; border-color: #d0d7de; color: #1b1f23; }
+.plain-summary { margin: 16px 32px 0; font-size: 14px; font-weight: 500; }
+.muted { color: #6e7781; font-size: 11px; }
+.mono { font-family: Consolas, 'SF Mono', monospace; }
+ol.steps { margin: 0; padding-left: 18px; }
+ol.steps li { margin: 2px 0; }
+.doclink { margin: 6px 0 0; font-size: 12px; }
+.doclink a { color: #0969da; text-decoration: none; }
+section h3 { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: #424a53; }
+details.remediation { background: #fff; border: 1px solid #d0d7de; border-radius: 4px;
+                      padding: 10px 14px; margin: 0 0 8px; }
+details.remediation summary { cursor: pointer; font-weight: 600; }
+details.remediation .sub { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: #586069; }
+details.remediation ul, details.remediation ol { margin: 0; padding-left: 20px; }
+details.remediation code { font-family: Consolas, 'SF Mono', monospace; font-size: 12px;
+                           background: #f6f8fa; padding: 1px 5px; border-radius: 3px; }
 </style>";
     }
 }

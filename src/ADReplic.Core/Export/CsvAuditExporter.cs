@@ -90,7 +90,10 @@ namespace ADReplic.Core.Export
         private static void WriteIssues(IReadOnlyList<DetectedIssue> issues, string path)
         {
             var sb = new StringBuilder();
-            AppendHeader(sb, "Severity", "Code", "Title", "Description", "AffectedItems");
+            // Les colonnes historiques restent en tete et dans le meme ordre ; les
+            // colonnes v0.7.0 sont ajoutees a la fin pour ne pas casser les imports existants.
+            AppendHeader(sb, "Severity", "Code", "Title", "Description", "AffectedItems",
+                             "Impact", "Recommendation", "DocumentationUrl");
             if (issues != null)
             {
                 foreach (var i in issues)
@@ -100,7 +103,11 @@ namespace ADReplic.Core.Export
                         i.Code,
                         i.Title,
                         i.Description,
-                        i.AffectedItems == null ? "" : string.Join("|", i.AffectedItems));
+                        i.AffectedItems == null ? "" : string.Join("|", i.AffectedItems),
+                        i.Impact,
+                        // Les etapes multi-lignes sont aplaties : une cellule CSV par anomalie.
+                        i.Recommendation?.Replace("\r", "").Replace("\n", " | "),
+                        i.DocumentationUrl);
                 }
             }
             File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
@@ -111,7 +118,8 @@ namespace ADReplic.Core.Export
             var sb = new StringBuilder();
             AppendHeader(sb,
                 "DestinationDc", "SourceDc", "FirstFailureTime", "DurationMinutes",
-                "ConsecutiveFailureCount", "LastErrorCode", "LastErrorMessage", "Severity");
+                "ConsecutiveFailureCount", "LastErrorCode", "LastErrorMessage", "Severity",
+                "ErrorTitle", "DocumentationUrl");
             if (failures != null)
             {
                 foreach (var f in failures)
@@ -124,7 +132,9 @@ namespace ADReplic.Core.Export
                         f.ConsecutiveFailureCount.ToString(CultureInfo.InvariantCulture),
                         f.LastErrorCode.ToString(CultureInfo.InvariantCulture),
                         f.LastErrorMessage,
-                        f.Severity.ToString());
+                        f.Severity.ToString(),
+                        f.ErrorTitle,
+                        f.Explanation.DocumentationUrl);
                 }
             }
             File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));

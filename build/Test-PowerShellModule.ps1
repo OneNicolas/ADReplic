@@ -19,6 +19,8 @@
 #   .\Test-PowerShellModule.ps1
 #   .\Test-PowerShellModule.ps1 -ModulePath "D:\Pack\Module\ADReplic\ADReplic.psd1"
 #   .\Test-PowerShellModule.ps1 -DcName srv-dc-01.exemple.local
+#   .\Test-PowerShellModule.ps1 -ForestName exemple.local -Credential (Get-Credential)
+#     (depuis un poste hors domaine : meme cible et identifiants que la GUI)
 # ============================================================================
 
 [CmdletBinding()]
@@ -26,11 +28,21 @@ param(
     # Vide par defaut : resolu automatiquement selon l'emplacement du script
     # (racine du pack portable, ou repo de dev). Voir Resolve-DefaultModulePath.
     [string]$ModulePath,
-    [string]$DcName
+    [string]$DcName,
+    # Foret cible et identifiants alternatifs, propages a toutes les cmdlets
+    # d'audit. Indispensables depuis un poste qui n'est pas joint au domaine.
+    [string]$ForestName,
+    [System.Management.Automation.PSCredential]$Credential
 )
 
 $ErrorActionPreference = 'Stop'
 $script:failures = 0
+
+# Splat commun : seuls les parametres fournis sont transmis, pour ne pas
+# declencher le garde-fou "-Credential fourni mais vide" (teste au groupe 6).
+$target = @{}
+if ($ForestName) { $target['ForestName'] = $ForestName }
+if ($Credential) { $target['Credential'] = $Credential }
 
 function Resolve-DefaultModulePath {
     # Ordre de recherche :
@@ -72,7 +84,7 @@ Write-Result ($commands.Count -ge 9) "Au moins 9 commandes exportees ($($command
 
 # --- 2. Inventaire et choix du DC cible --------------------------------------
 Write-Host "`n== 2. Inventaire =="
-$dcs = @(Get-ADRDcInventory)
+$dcs = @(Get-ADRDcInventory @target)
 Write-Result ($dcs.Count -ge 1) "Inventaire : $($dcs.Count) DC decouverts"
 if (-not $DcName) {
     $DcName = $dcs[0].HostName
@@ -81,11 +93,11 @@ if (-not $DcName) {
 
 # --- 3. Mode DC seul (-DcName) ------------------------------------------------
 Write-Host "`n== 3. Mode DC seul =="
-$links = @(Get-ADRReplicationStatus -DcName $DcName)
+$links = @(Get-ADRReplicationStatus -DcName $DcName @target)
 $foreign = @($links | Where-Object { $_.DestinationDc -ne $DcName })
 Write-Result ($foreign.Count -eq 0) "Get-ADRReplicationStatus -DcName : $($links.Count) lien(s), tous vers le DC cible"
 
-$issues = @(Get-ADRIssue -DcName $DcName)
+$issues = @(Get-ADRIssue -DcName $DcName @target)
 $falsePositives = @($issues | Where-Object { $_.Code -in 'DC_ISOLATED', 'DOMAIN_SINGLE_DC' })
 Write-Result ($falsePositives.Count -eq 0) "Get-ADRIssue -DcName : pas de faux positif DC_ISOLATED / DOMAIN_SINGLE_DC ($($issues.Count) anomalie(s) au total)"
 
@@ -93,7 +105,7 @@ Write-Result ($falsePositives.Count -eq 0) "Get-ADRIssue -DcName : pas de faux p
 Write-Host "`n== 4. Export =="
 $outDir = Join-Path $env:TEMP ("ADReplic-Test-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 # Le dossier n'est volontairement PAS cree ici : c'est la cmdlet qui doit le creer.
-$htmlPath = Export-ADRAudit -Path (Join-Path $outDir 'audit-dc.html') -DcName $DcName -SkipHealthProbes
+$htmlPath = Export-ADRAudit -Path (Join-Path $outDir 'audit-dc.html') -DcName $DcName -SkipHealthProbes @target
 Write-Result ((Test-Path $htmlPath)) "Export-ADRAudit -DcName : rapport cree, dossier de sortie cree automatiquement"
 Write-Host "         Rapport : $htmlPath"
 
@@ -101,9 +113,9 @@ Write-Host "         Rapport : $htmlPath"
 # Deux exports JSON generes a la volee : le diff doit exister et etre sans
 # degradation significative (memes donnees a quelques secondes d'intervalle).
 Write-Host "`n== 5. Compare-ADRAudit =="
-$jsonRef = Export-ADRAudit -Path (Join-Path $outDir 'audit-ref.json') -Format JSON -SkipHealthProbes
+$jsonRef = Export-ADRAudit -Path (Join-Path $outDir 'audit-ref.json') -Format JSON -SkipHealthProbes @target
 Start-Sleep -Seconds 2
-$jsonCur = Export-ADRAudit -Path (Join-Path $outDir 'audit-cur.json') -Format JSON -SkipHealthProbes
+$jsonCur = Export-ADRAudit -Path (Join-Path $outDir 'audit-cur.json') -Format JSON -SkipHealthProbes @target
 
 $diff = Compare-ADRAudit -ReferencePath $jsonRef -CurrentPath $jsonCur
 Write-Result ($null -ne $diff) "Compare-ADRAudit : objet AuditDiff retourne"
@@ -120,21 +132,55 @@ Write-Host "         Pour un vrai diff : relancez avec deux snapshots de $env:AP
 #   - CredentialProvidedButEmpty : le garde-fou applicatif (AuditContextBuilder)
 #     attrape le cas ou la transformation [Credential] a laisse passer une
 #     valeur vide (Get-Credential annule ou muet).
+#
+# Pourquoi [PSCredential]::Empty et pas $null : sous Windows PowerShell 5.1,
+# l'attribut [Credential] transforme un $null en INVITE INTERACTIVE. Si
+# l'operateur la renseigne, la cmdlet recoit un identifiant valide et le test
+# devient faux (vecu sur un poste hors domaine : appel parti vers une foret
+# courante inexistante). Empty est lie explicitement, sans invite, et c'est
+# exactement la valeur qu'un Get-Credential annule laisse passer.
 Write-Host "`n== 6. Garde-fou Credential =="
 $guardTriggered = $false
 $guardLayer = ''
 try {
-    Get-ADRDcInventory -Credential $null | Out-Null
+    Get-ADRDcInventory -Credential ([System.Management.Automation.PSCredential]::Empty) | Out-Null
 }
 catch {
-    switch -Wildcard ($_.FullyQualifiedErrorId) {
+    # Piege : dans un bloc switch, $_ designe la valeur testee, plus l'erreur.
+    # On capture l'ErrorRecord avant d'entrer dans le switch.
+    $err = $_
+    switch -Wildcard ($err.FullyQualifiedErrorId) {
         'CredentialProvidedButEmpty*'      { $guardTriggered = $true; $guardLayer = 'garde-fou applicatif' }
         'ParameterArgumentValidationError*' { $guardTriggered = $true; $guardLayer = 'validation d''attribut [ValidateNotNull]' }
-        default { Write-Host "         Erreur inattendue : $($_.FullyQualifiedErrorId)" }
+        default {
+            # Diagnostic complet : type reel de l'exception (AggregateException
+            # eventuellement) et message, pour comprendre quelle couche a parle.
+            $ex = $err.Exception
+            if ($ex -is [System.AggregateException] -and $ex.InnerExceptions.Count -gt 0) { $ex = $ex.InnerExceptions[0] }
+            $typeName = if ($ex) { $ex.GetType().FullName } else { '(aucune exception)' }
+            Write-Host "         Erreur inattendue : id='$($err.FullyQualifiedErrorId)' type=$typeName"
+            if ($ex) { Write-Host "         Message : $($ex.Message)" }
+        }
     }
 }
 if ($guardLayer) { Write-Host "         Rejete par : $guardLayer" }
 Write-Result $guardTriggered "-Credential vide fourni explicitement : appel rejete"
+
+# --- 7. Get-ADRErrorExplanation (v0.7.0, hors ligne) --------------------------
+Write-Host "`n== 7. Get-ADRErrorExplanation =="
+$rpc = Get-ADRErrorExplanation -Code 1722
+Write-Result ($rpc.IsKnown -and $rpc.Title -like '*RPC*') "Code 1722 documente : $($rpc.Title)"
+Write-Result ($rpc.Commands.Count -ge 1) "Code 1722 : $($rpc.Commands.Count) commande(s) proposee(s)"
+
+$unknown = Get-ADRErrorExplanation -Code 123456789
+Write-Result ((-not $unknown.IsKnown) -and $unknown.Checks.Count -ge 1) "Code inconnu : fiche generique avec verifications"
+
+$catalog = @(Get-ADRErrorExplanation)
+Write-Result ($catalog.Count -ge 15) "Catalogue complet : $($catalog.Count) codes documentes"
+
+$fromPipeline = @(Get-ADRReplicationFailure -DcName $DcName @target | Get-ADRErrorExplanation)
+$failureCount = @(Get-ADRReplicationFailure -DcName $DcName @target).Count
+Write-Result ($fromPipeline.Count -eq $failureCount) "Pipeline Get-ADRReplicationFailure | Get-ADRErrorExplanation : $($fromPipeline.Count) fiche(s) pour $failureCount echec(s)"
 
 # --- Bilan ---------------------------------------------------------------------
 Write-Host ""
