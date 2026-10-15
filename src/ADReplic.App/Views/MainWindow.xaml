@@ -557,13 +557,48 @@
                                 </DataGrid.Columns>
                                 </DataGrid>
 
+                                <!-- Bandeau vert seulement après un audit abouti (v0.8.0) : avant le premier
+                                     audit ou après une erreur, une grille vide n'est pas une bonne nouvelle. -->
                                 <TextBlock Grid.Row="0" Text="✓ Aucun échec de réplication en cours."
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{DynamicResource Success}"
                                            FontSize="14" FontWeight="SemiBold"
-                                           IsHitTestVisible="False"
-                                           Visibility="{Binding HasItems, ElementName=FailuresGrid,
-                                                        Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasItems, ElementName=FailuresGrid}" Value="False" />
+                                                        <Condition Binding="{Binding HasAuditData}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Row="0" Text="{Binding EmptyStateMessage}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SubtleText}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasItems, ElementName=FailuresGrid}" Value="False" />
+                                                        <Condition Binding="{Binding HasAuditData}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
                                 <!-- Invite discrète quand il y a des échecs mais rien de sélectionné. -->
                                 <Border Grid.Row="2" Padding="14,8" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0">
@@ -871,9 +906,42 @@
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{DynamicResource Success}"
                                            FontSize="14" FontWeight="SemiBold"
-                                           IsHitTestVisible="False"
-                                           Visibility="{Binding HasItems, ElementName=IssuesGrid,
-                                                        Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasItems, ElementName=IssuesGrid}" Value="False" />
+                                                        <Condition Binding="{Binding HasAuditData}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Row="0" Text="{Binding EmptyStateMessage}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SubtleText}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasItems, ElementName=IssuesGrid}" Value="False" />
+                                                        <Condition Binding="{Binding HasAuditData}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
                                 <Border Grid.Row="2" Padding="14,8" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0">
                                     <Border.Style>

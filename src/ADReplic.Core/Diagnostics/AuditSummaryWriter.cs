@@ -13,6 +13,20 @@ namespace ADReplic.Core.Diagnostics
     /// </summary>
     public static class AuditSummaryWriter
     {
+        /// <summary>
+        /// Phrase neutre quand l'audit s'est arrêté avant d'avoir collecté quoi que ce
+        /// soit (erreur, délai dépassé). Sans elle, des onglets vides ressemblent à une
+        /// forêt saine ; la phrase dit explicitement que ce n'est pas le cas.
+        /// </summary>
+        public static string WriteNotCompleted(string explanation)
+        {
+            var head = string.IsNullOrWhiteSpace(explanation)
+                ? "L'audit n'a pas abouti."
+                : "L'audit n'a pas abouti : " + explanation.Trim();
+            if (!head.EndsWith(".")) head += ".";
+            return head + " Aucune donnée n'a été collectée : les onglets vides ne reflètent pas l'état de la forêt.";
+        }
+
         public static string Write(AuditSnapshot snapshot)
         {
             if (snapshot == null) return "";

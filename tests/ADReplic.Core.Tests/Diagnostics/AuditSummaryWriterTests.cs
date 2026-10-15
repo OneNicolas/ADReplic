@@ -190,6 +190,27 @@ namespace ADReplic.Core.Tests.Diagnostics
         }
 
         [Fact]
+        public void Not_completed_audit_gets_a_neutral_sentence_that_says_no_data_was_collected()
+        {
+            // Lot 2 v0.8.0 : après un audit en erreur, les onglets vides ne doivent pas
+            // ressembler à une forêt saine. La phrase doit lever l'ambiguïté.
+            var text = AuditSummaryWriter.WriteNotCompleted("Identifiants refusés par le DC.");
+
+            Assert.Contains("n'a pas abouti", text);
+            Assert.Contains("Identifiants refusés par le DC.", text);
+            Assert.Contains("Aucune donnée n'a été collectée", text);
+            Assert.DoesNotContain("Tout fonctionne", text);
+        }
+
+        [Fact]
+        public void Not_completed_audit_without_explanation_still_reads_well()
+        {
+            var text = AuditSummaryWriter.WriteNotCompleted(null);
+
+            Assert.Equal("L'audit n'a pas abouti. Aucune donnée n'a été collectée : les onglets vides ne reflètent pas l'état de la forêt.", text);
+        }
+
+        [Fact]
         public void Acronym_titles_keep_their_capitals_mid_sentence()
         {
             var snap = new AuditSnapshot

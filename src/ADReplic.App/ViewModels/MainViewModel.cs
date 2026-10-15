@@ -59,6 +59,8 @@ namespace ADReplic.App.ViewModels
         private ReplicationFailureInfo _selectedFailure;
         private DetectedIssue _selectedIssue;
         private IssueRowViewModel _selectedIssueRow;
+        private bool _hasAuditData;
+        private bool _lastAuditFailed;
 
         // === Monitoring state ===============================================
         private bool _isAutoRefreshEnabled;
@@ -300,6 +302,27 @@ namespace ADReplic.App.ViewModels
 
         public bool HasAuditSummary => !string.IsNullOrEmpty(_auditSummary);
 
+        /// <summary>
+        /// Vrai seulement quand le dernier audit a abouti (v0.8.0). Les bandeaux verts
+        /// « ✓ Aucun échec / Aucune anomalie » n'ont de sens que dans ce cas : avant le
+        /// premier audit ou après une erreur, une grille vide n'est pas une bonne nouvelle.
+        /// </summary>
+        public bool HasAuditData
+        {
+            get => _hasAuditData;
+            private set
+            {
+                if (SetProperty(ref _hasAuditData, value))
+                    RaisePropertyChanged(nameof(EmptyStateMessage));
+            }
+        }
+
+        /// <summary>Texte neutre des grilles vides quand il n'y a pas de données exploitables.</summary>
+        public string EmptyStateMessage =>
+            _lastAuditFailed
+                ? "Aucune donnée : l'audit n'a pas abouti."
+                : "Aucun audit effectué pour l'instant.";
+
         public ReplicationFailureInfo SelectedFailure
         {
             get => _selectedFailure;
@@ -514,6 +537,7 @@ namespace ADReplic.App.ViewModels
             SelectedFailure = null;
             SelectedIssueRow = null;
             SelectedIssue = null;
+            HasAuditData = false;
 
             var singleDcMode = IsSingleDcMode;
             var targetDc = _targetDcHostName;
@@ -581,15 +605,20 @@ namespace ADReplic.App.ViewModels
 
                     _lastAuditWasSingleDc = singleDcMode;
                     finalSnapshot = snapshot;
+                    _lastAuditFailed = false;
+                    HasAuditData = true;
                 }
             }
             catch (OperationCanceledException)
             {
                 StatusMessage = "Audit interrompu (timeout).";
+                MarkAuditNotCompleted("délai dépassé, l'audit a été interrompu.");
             }
             catch (Exception ex)
             {
-                StatusMessage = "Erreur : " + AuditErrorClassifier.Explain(ex);
+                var explanation = AuditErrorClassifier.Explain(ex);
+                StatusMessage = "Erreur : " + explanation;
+                MarkAuditNotCompleted(explanation);
             }
             finally
             {
@@ -651,6 +680,18 @@ namespace ADReplic.App.ViewModels
             {
                 StatusMessage = "Erreur export : " + ex.Message;
             }
+        }
+
+        /// <summary>
+        /// Audit arrêté avant toute collecte : bandeau neutre (HealthScore null → gris)
+        /// avec une phrase explicite, et grilles vides en mode « aucune donnée ».
+        /// </summary>
+        private void MarkAuditNotCompleted(string explanation)
+        {
+            _lastAuditFailed = true;
+            HasAuditData = false;
+            RaisePropertyChanged(nameof(EmptyStateMessage));
+            AuditSummary = AuditSummaryWriter.WriteNotCompleted(explanation);
         }
 
         private static string BuildFinalStatus(
