@@ -212,6 +212,13 @@ namespace ADReplic.App.Views
 
         private void OnQuitClick(object sender, RoutedEventArgs e) => Close();
 
+        /// <summary>Lien "Documentation Microsoft" des panneaux de détail : l'URL est dans le Tag du bouton.</summary>
+        private void OnOpenUrlClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.Tag is string url && !string.IsNullOrWhiteSpace(url))
+                TryOpenUrl(url);
+        }
+
         // -------- Menu : Outils > Thème --------
 
         private void OnThemeLightClick(object sender, RoutedEventArgs e) =>

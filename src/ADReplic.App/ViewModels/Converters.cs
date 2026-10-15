@@ -31,6 +31,45 @@ namespace ADReplic.App.ViewModels
             => value is Visibility v && v == Visibility.Collapsed;
     }
 
+    /// <summary>Durée en français lisible ("3 j 4 h", "45 min") via le formateur Core.</summary>
+    public sealed class DurationToHumanTextConverter : IValueConverter
+    {
+        public static readonly DurationToHumanTextConverter Instance = new DurationToHumanTextConverter();
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is TimeSpan ts ? ADReplic.Core.Diagnostics.DurationFormatter.ToHumanText(ts) : "";
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Découpe une recommandation multi-lignes "1. ...\n2. ..." en étapes pour
+    /// un ItemsControl, numéro retiré (la liste numérote elle-même).
+    /// </summary>
+    public sealed class StepsSplitConverter : IValueConverter
+    {
+        public static readonly StepsSplitConverter Instance = new StepsSplitConverter();
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (!(value is string text) || string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
+            return text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                       .Select(l => System.Text.RegularExpressions.Regex.Replace(l.Trim(), @"^\d+\.\s*", ""))
+                       .Where(l => l.Length > 0)
+                       .ToArray();
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>AlternationIndex (base 0) vers "1.", "2."... pour les listes numérotées.</summary>
+    public sealed class AlternationIndexToNumberConverter : IValueConverter
+    {
+        public static readonly AlternationIndexToNumberConverter Instance = new AlternationIndexToNumberConverter();
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is int i ? (i + 1).ToString(CultureInfo.InvariantCulture) + "." : "";
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     public sealed class StringJoinConverter : IValueConverter
     {
         public static readonly StringJoinConverter Instance = new StringJoinConverter();
@@ -383,16 +422,22 @@ namespace ADReplic.App.ViewModels
     }
 
     /// <summary>
-    /// Cache un élément quand la valeur source est null. Utile pour les bindings
-    /// vers des sous-objets optionnels (par exemple le HealthScoreDelta d'un diff,
-    /// nul si l'un des deux audits n'a pas calculé de score).
+    /// Cache un élément quand la valeur source est null, ou vide pour une chaîne
+    /// ou une collection (v0.7.0). Utile pour les bindings vers des sous-objets
+    /// optionnels (HealthScoreDelta d'un diff) et les sections facultatives des
+    /// panneaux de détail (Impact, Commands...).
     /// </summary>
     public sealed class NullToCollapsedConverter : IValueConverter
     {
         public static readonly NullToCollapsedConverter Instance = new NullToCollapsedConverter();
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-            => value == null ? Visibility.Collapsed : Visibility.Visible;
+        {
+            if (value == null) return Visibility.Collapsed;
+            if (value is string s) return string.IsNullOrWhiteSpace(s) ? Visibility.Collapsed : Visibility.Visible;
+            if (value is ICollection c) return c.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+            return Visibility.Visible;
+        }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();

@@ -19,6 +19,84 @@
         <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
     </Window.InputBindings>
 
+    <!-- Styles du panneau de détail (v0.7.0), partagés par Échecs actifs et Diagnostics. -->
+    <Window.Resources>
+        <Style x:Key="DetailHeading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+            <Setter Property="Margin" Value="0,10,0,4" />
+        </Style>
+        <Style x:Key="DetailBody" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Foreground}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="DetailLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+        <Style x:Key="DetailLinkButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <!-- Liste à puces simple : chaque item est une chaîne. -->
+        <DataTemplate x:Key="BulletItemTemplate">
+            <Grid Margin="0,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="•" Style="{StaticResource DetailBody}" />
+                <TextBlock Grid.Column="1" Text="{Binding}" Style="{StaticResource DetailBody}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- Liste numérotée : chaque item est une chaîne, le numéro vient de l'index via
+             AlternationIndex (ItemsControl.AlternationCount suffisamment grand). -->
+        <DataTemplate x:Key="NumberedItemTemplate">
+            <Grid Margin="0,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="22" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Style="{StaticResource DetailBody}"
+                           Text="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter},
+                                          Path=(ItemsControl.AlternationIndex),
+                                          Converter={x:Static vm:AlternationIndexToNumberConverter.Instance},
+                                          Mode=OneWay}" />
+                <TextBlock Grid.Column="1" Text="{Binding}" Style="{StaticResource DetailBody}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- Commande à copier : texte monospace + bouton Copier. -->
+        <DataTemplate x:Key="CommandItemTemplate">
+            <Grid Margin="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Background="{DynamicResource SurfaceAlt}"
+                        BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                        CornerRadius="3" Padding="6,3">
+                    <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12"
+                               Foreground="{DynamicResource Foreground}" TextWrapping="Wrap" />
+                </Border>
+                <Button Grid.Column="1" Content="Copier" Margin="6,0,0,0" Padding="8,2"
+                        VerticalAlignment="Center"
+                        Command="{Binding DataContext.CopyTextCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="{Binding}" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
     <!-- Grid racine : permet de superposer le toast en overlay au-dessus du DockPanel. -->
     <Grid>
 
@@ -351,6 +429,28 @@
             </Border>
 
             <!-- ====================================================================
+                 Bandeau de synthèse (v0.7.0) : une phrase en français clair, colorée
+                 selon le niveau du score. Visible seulement après un audit.
+                 ==================================================================== -->
+            <Border DockPanel.Dock="Top" Margin="20,12,20,0" Padding="14,10" CornerRadius="6"
+                    BorderThickness="1,1,1,1"
+                    BorderBrush="{Binding HealthScore.Level, Converter={x:Static vm:HealthLevelToBrushConverter.Instance}}"
+                    Background="{DynamicResource SurfaceElevated}"
+                    Visibility="{Binding HasAuditSummary, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Width="6" CornerRadius="3" Margin="0,0,12,0"
+                            Background="{Binding HealthScore.Level, Converter={x:Static vm:HealthLevelToBrushConverter.Instance}}" />
+                    <TextBlock Grid.Column="1" Text="{Binding AuditSummary}"
+                               FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Foreground}" />
+                </Grid>
+            </Border>
+
+            <!-- ====================================================================
                  Onglets de contenu
                  ==================================================================== -->
             <Border Padding="20,12,20,16">
@@ -403,7 +503,15 @@
                     <TabItem Header="Échecs actifs">
                         <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
                             <Grid>
-                                <DataGrid x:Name="FailuresGrid" ItemsSource="{Binding ReplicationFailures}"
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" MinHeight="120" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <DataGrid Grid.Row="0" x:Name="FailuresGrid" ItemsSource="{Binding ReplicationFailures}"
+                                          SelectedItem="{Binding SelectedFailure, Mode=TwoWay}"
+                                          SelectionMode="Single" IsReadOnly="True"
                                           CanUserResizeColumns="True" CanUserSortColumns="True"
                                           CanUserReorderColumns="True">
                                 <DataGrid.Columns>
@@ -419,19 +527,103 @@
                                     <DataGridTextColumn Header="Destination"   Binding="{Binding DestinationDc}" Width="220" MinWidth="120" SortMemberPath="DestinationDc" />
                                     <DataGridTextColumn Header="Source"        Binding="{Binding SourceDc}"      Width="220" MinWidth="120" SortMemberPath="SourceDc" />
                                     <DataGridTextColumn Header="Premier échec" Binding="{Binding FirstFailureTime, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" Width="150" MinWidth="100" SortMemberPath="FirstFailureTime" />
-                                    <DataGridTextColumn Header="Durée"         Binding="{Binding FailureDuration, Converter={x:Static vm:LatencyToTextConverter.Instance}}" Width="90" MinWidth="60" SortMemberPath="FailureDuration" />
+                                    <DataGridTextColumn Header="Durée"         Binding="{Binding FailureDuration, Converter={x:Static vm:DurationToHumanTextConverter.Instance}}" Width="135" MinWidth="90" SortMemberPath="FailureDuration" />
                                     <DataGridTextColumn Header="Tentatives"    Binding="{Binding ConsecutiveFailureCount}" Width="90" MinWidth="60" SortMemberPath="ConsecutiveFailureCount" />
-                                    <DataGridTextColumn Header="Erreur"        Binding="{Binding LastErrorMessage}" Width="*" MinWidth="200" />
+                                    <!-- Titre clair du catalogue ; le message système brut reste disponible en tooltip. -->
+                                    <DataGridTemplateColumn Header="Erreur" Width="*" MinWidth="220" SortMemberPath="ErrorTitle">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ErrorTitle, Mode=OneWay}" VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding LastErrorMessage}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                                 </DataGrid>
 
-                                <TextBlock Text="✓ Aucun échec de réplication en cours."
+                                <TextBlock Grid.Row="0" Text="✓ Aucun échec de réplication en cours."
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{DynamicResource Success}"
                                            FontSize="14" FontWeight="SemiBold"
                                            IsHitTestVisible="False"
                                            Visibility="{Binding HasItems, ElementName=FailuresGrid,
                                                         Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+
+                                <!-- Invite discrète quand il y a des échecs mais rien de sélectionné. -->
+                                <Border Grid.Row="2" Padding="14,8" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasItems, ElementName=FailuresGrid}" Value="True" />
+                                                        <Condition Binding="{Binding HasSelectedFailure}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="Sélectionnez un échec pour voir ce qu'il signifie et comment le corriger."
+                                               Style="{StaticResource DetailLabel}" />
+                                </Border>
+
+                                <!-- Panneau de détail (v0.7.0) : visible uniquement avec une sélection. -->
+                                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
+                                              Background="{DynamicResource Border}" ResizeBehavior="PreviousAndNext"
+                                              Visibility="{Binding HasSelectedFailure, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                <!-- Visibility resolue contre le DataContext de la fenetre : sur ce Border le
+                                     DataContext est remplace par la selection (null = binding muet = visible). -->
+                                <Border Grid.Row="2" Padding="14,6,14,12" MaxHeight="320"
+                                        Visibility="{Binding DataContext.HasSelectedFailure, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
+                                        DataContext="{Binding SelectedFailure}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding ErrorTitle, Mode=OneWay}"
+                                                           FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource Foreground}" VerticalAlignment="Center" />
+                                                <Button Grid.Column="1" Content="Copier le diagnostic" Margin="12,0,0,0" Padding="10,4"
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        ToolTip="Copie la fiche complète (texte brut + HTML) pour un mail ou un ticket."
+                                                        Command="{Binding DataContext.CopyFailureDiagnosticCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            </Grid>
+                                            <TextBlock Style="{StaticResource DetailLabel}" Margin="0,2,0,0">
+                                                <Run Text="Code " /><Run Text="{Binding LastErrorCode, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding LastErrorMessage, Mode=OneWay}" />
+                                            </TextBlock>
+
+                                            <TextBlock Text="Ce que cela signifie" Style="{StaticResource DetailHeading}" />
+                                            <TextBlock Text="{Binding Explanation.Explanation, Mode=OneWay}" Style="{StaticResource DetailBody}" />
+
+                                            <TextBlock Text="Causes probables" Style="{StaticResource DetailHeading}"
+                                                       Visibility="{Binding Explanation.ProbableCauses, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
+                                            <ItemsControl ItemsSource="{Binding Explanation.ProbableCauses, Mode=OneWay}"
+                                                          ItemTemplate="{StaticResource BulletItemTemplate}" />
+
+                                            <TextBlock Text="Que vérifier" Style="{StaticResource DetailHeading}"
+                                                       Visibility="{Binding Explanation.Checks, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
+                                            <ItemsControl ItemsSource="{Binding Explanation.Checks, Mode=OneWay}"
+                                                          AlternationCount="100"
+                                                          ItemTemplate="{StaticResource NumberedItemTemplate}" />
+
+                                            <TextBlock Text="Commandes à copier" Style="{StaticResource DetailHeading}"
+                                                       Visibility="{Binding Explanation.Commands, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
+                                            <ItemsControl ItemsSource="{Binding Explanation.Commands, Mode=OneWay}"
+                                                          ItemTemplate="{StaticResource CommandItemTemplate}" />
+
+                                            <Button Style="{StaticResource DetailLinkButton}" Margin="0,10,0,0"
+                                                    Content="Documentation Microsoft ↗"
+                                                    Visibility="{Binding Explanation.DocumentationUrl, Converter={x:Static vm:NullToCollapsedConverter.Instance}}"
+                                                    Click="OnOpenUrlClick" Tag="{Binding Explanation.DocumentationUrl, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
                             </Grid>
                         </Border>
                     </TabItem>
@@ -511,7 +703,15 @@
                     <TabItem Header="Diagnostics">
                         <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
                             <Grid>
-                                <DataGrid x:Name="IssuesGrid" ItemsSource="{Binding Issues}"
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" MinHeight="120" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <DataGrid Grid.Row="0" x:Name="IssuesGrid" ItemsSource="{Binding Issues}"
+                                          SelectedItem="{Binding SelectedIssue, Mode=TwoWay}"
+                                          SelectionMode="Single" IsReadOnly="True"
                                           CanUserResizeColumns="True" CanUserSortColumns="True"
                                           CanUserReorderColumns="True">
                                     <DataGrid.Columns>
@@ -528,17 +728,84 @@
                                         <DataGridTextColumn Header="Code"               Binding="{Binding Code}"     Width="220" MinWidth="140" SortMemberPath="Code" />
                                         <DataGridTextColumn Header="Anomalie"           Binding="{Binding Title}"    Width="320" MinWidth="180" SortMemberPath="Title" />
                                         <DataGridTextColumn Header="Éléments concernés" Binding="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="220" MinWidth="140" />
-                                        <DataGridTextColumn Header="Recommandation"     Binding="{Binding Description}" Width="*" MinWidth="260" />
+                                        <DataGridTextColumn Header="Constat"            Binding="{Binding Description}" Width="*" MinWidth="260" />
                                     </DataGrid.Columns>
                                 </DataGrid>
 
-                                <TextBlock Text="✓ Aucune anomalie de configuration détectée."
+                                <TextBlock Grid.Row="0" Text="✓ Aucune anomalie de configuration détectée."
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{DynamicResource Success}"
                                            FontSize="14" FontWeight="SemiBold"
                                            IsHitTestVisible="False"
                                            Visibility="{Binding HasItems, ElementName=IssuesGrid,
                                                         Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+
+                                <Border Grid.Row="2" Padding="14,8" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasItems, ElementName=IssuesGrid}" Value="True" />
+                                                        <Condition Binding="{Binding HasSelectedIssue}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="Sélectionnez une anomalie pour comprendre son impact et savoir quoi faire."
+                                               Style="{StaticResource DetailLabel}" />
+                                </Border>
+
+                                <!-- Panneau de détail (v0.7.0) : constat / pourquoi / que faire. -->
+                                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
+                                              Background="{DynamicResource Border}" ResizeBehavior="PreviousAndNext"
+                                              Visibility="{Binding HasSelectedIssue, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                <Border Grid.Row="2" Padding="14,6,14,12" MaxHeight="320"
+                                        Visibility="{Binding DataContext.HasSelectedIssue, RelativeSource={RelativeSource AncestorType=Window}, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
+                                        DataContext="{Binding SelectedIssue}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding Title, Mode=OneWay}"
+                                                           FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource Foreground}" VerticalAlignment="Center" />
+                                                <Button Grid.Column="1" Content="Copier le diagnostic" Margin="12,0,0,0" Padding="10,4"
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        ToolTip="Copie la fiche complète (texte brut + HTML) pour un mail ou un ticket."
+                                                        Command="{Binding DataContext.CopyIssueDiagnosticCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            </Grid>
+                                            <TextBlock Style="{StaticResource DetailLabel}" Margin="0,2,0,0">
+                                                <Run Text="{Binding Code, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding AffectedItems, Converter={x:Static vm:StringJoinConverter.Instance}, Mode=OneWay}" />
+                                            </TextBlock>
+
+                                            <TextBlock Text="Constat" Style="{StaticResource DetailHeading}" />
+                                            <TextBlock Text="{Binding Description, Mode=OneWay}" Style="{StaticResource DetailBody}" />
+
+                                            <TextBlock Text="Pourquoi c'est important" Style="{StaticResource DetailHeading}"
+                                                       Visibility="{Binding Impact, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
+                                            <TextBlock Text="{Binding Impact, Mode=OneWay}" Style="{StaticResource DetailBody}"
+                                                       Visibility="{Binding Impact, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
+
+                                            <TextBlock Text="Que faire" Style="{StaticResource DetailHeading}"
+                                                       Visibility="{Binding Recommendation, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
+                                            <ItemsControl ItemsSource="{Binding Recommendation, Converter={x:Static vm:StepsSplitConverter.Instance}, Mode=OneWay}"
+                                                          AlternationCount="100"
+                                                          ItemTemplate="{StaticResource NumberedItemTemplate}" />
+
+                                            <Button Style="{StaticResource DetailLinkButton}" Margin="0,10,0,0"
+                                                    Content="Documentation Microsoft ↗"
+                                                    Visibility="{Binding DocumentationUrl, Converter={x:Static vm:NullToCollapsedConverter.Instance}}"
+                                                    Click="OnOpenUrlClick" Tag="{Binding DocumentationUrl, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
                             </Grid>
                         </Border>
                     </TabItem>

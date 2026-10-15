@@ -54,6 +54,11 @@ namespace ADReplic.App.ViewModels
         private PortHealthResult _lastPortHealth;
         private HealthScore _healthScore;
 
+        // === Lisibilité (v0.7.0) ============================================
+        private string _auditSummary;
+        private ReplicationFailureInfo _selectedFailure;
+        private DetectedIssue _selectedIssue;
+
         // === Monitoring state ===============================================
         private bool _isAutoRefreshEnabled;
         private int _autoRefreshIntervalMinutes;
@@ -126,6 +131,10 @@ namespace ADReplic.App.ViewModels
             AcknowledgeAlertCommand     = new RelayCommand<object>(_ => AcknowledgeAlert(), _ => HasPendingAlert);
             SetAutoRefreshIntervalCommand = new RelayCommand<object>(SetAutoRefreshInterval);
 
+            CopyFailureDiagnosticCommand = new RelayCommand<object>(_ => CopyFailureDiagnostic(), _ => SelectedFailure != null);
+            CopyIssueDiagnosticCommand   = new RelayCommand<object>(_ => CopyIssueDiagnostic(),   _ => SelectedIssue != null);
+            CopyTextCommand              = new RelayCommand<string>(CopyText, t => !string.IsNullOrEmpty(t));
+
             StatusMessage = "Prêt — cliquez sur Actualiser pour lancer un audit.";
         }
 
@@ -155,6 +164,12 @@ namespace ADReplic.App.ViewModels
         public ICommand OpenSnapshotsFolderCommand { get; }
         public ICommand AcknowledgeAlertCommand { get; }
         public ICommand SetAutoRefreshIntervalCommand { get; }
+
+        // === Commands (nouvelles v0.7.0) ====================================
+        public ICommand CopyFailureDiagnosticCommand { get; }
+        public ICommand CopyIssueDiagnosticCommand { get; }
+        /// <summary>Copie une commande individuelle (paramètre : le texte) depuis le panneau de détail.</summary>
+        public ICommand CopyTextCommand { get; }
 
         // === Sous-VMs =======================================================
         public CompareViewModel Compare { get; }
@@ -259,6 +274,52 @@ namespace ADReplic.App.ViewModels
 
         public bool HasHealthScore => _healthScore != null;
 
+        // === Props (nouvelles v0.7.0 : lisibilité) ==========================
+
+        /// <summary>Phrase de synthèse en français clair, affichée dans le bandeau sous le header.</summary>
+        public string AuditSummary
+        {
+            get => _auditSummary;
+            private set
+            {
+                if (SetProperty(ref _auditSummary, value))
+                    RaisePropertyChanged(nameof(HasAuditSummary));
+            }
+        }
+
+        public bool HasAuditSummary => !string.IsNullOrEmpty(_auditSummary);
+
+        public ReplicationFailureInfo SelectedFailure
+        {
+            get => _selectedFailure;
+            set
+            {
+                if (SetProperty(ref _selectedFailure, value))
+                {
+                    RaisePropertyChanged(nameof(HasSelectedFailure));
+                    // RelayCommand ne ré-évalue pas CanExecute tout seul (leçon v0.5.0).
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public bool HasSelectedFailure => _selectedFailure != null;
+
+        public DetectedIssue SelectedIssue
+        {
+            get => _selectedIssue;
+            set
+            {
+                if (SetProperty(ref _selectedIssue, value))
+                {
+                    RaisePropertyChanged(nameof(HasSelectedIssue));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public bool HasSelectedIssue => _selectedIssue != null;
+
         // === Props (nouvelles v0.5.0) =======================================
 
         public bool IsAutoRefreshEnabled
@@ -333,6 +394,53 @@ namespace ADReplic.App.ViewModels
             StatusMessage = "Cible réinitialisée : forêt courante, identifiants Windows.";
         }
 
+        // === Copie de diagnostic (v0.7.0) ===================================
+
+        private void CopyFailureDiagnostic()
+        {
+            var f = SelectedFailure;
+            if (f == null) return;
+            CopyToClipboard(DiagnosticReportWriter.ToPlainText(f), DiagnosticReportWriter.ToHtml(f));
+            StatusMessage = "Fiche diagnostic copiée (texte + HTML) : collez-la dans un mail ou un ticket.";
+        }
+
+        private void CopyIssueDiagnostic()
+        {
+            var i = SelectedIssue;
+            if (i == null) return;
+            CopyToClipboard(DiagnosticReportWriter.ToPlainText(i), DiagnosticReportWriter.ToHtml(i));
+            StatusMessage = "Fiche diagnostic copiée (texte + HTML) : collez-la dans un mail ou un ticket.";
+        }
+
+        private void CopyText(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            CopyToClipboard(text, null);
+            StatusMessage = "Commande copiée : " + text;
+        }
+
+        /// <summary>
+        /// Place les deux formats dans le presse-papiers : les clients riches
+        /// (Outlook, Teams, Word) collent le HTML, les autres le texte brut.
+        /// SetDataObject(copy: true) garde le contenu après la fermeture de l'app.
+        /// </summary>
+        private static void CopyToClipboard(string plainText, string html)
+        {
+            try
+            {
+                var data = new System.Windows.DataObject();
+                data.SetText(plainText ?? "", System.Windows.TextDataFormat.UnicodeText);
+                if (!string.IsNullOrEmpty(html))
+                    data.SetText(HtmlClipboardFormat.Wrap(html), System.Windows.TextDataFormat.Html);
+                System.Windows.Clipboard.SetDataObject(data, true);
+            }
+            catch (Exception)
+            {
+                // Le presse-papiers peut être verrouillé par une autre application ;
+                // on ne fait pas échouer l'UI pour ça, le bouton reste disponible.
+            }
+        }
+
         private void OnAuditSingleDc(DomainControllerInfo dc)
         {
             if (dc == null || string.IsNullOrEmpty(dc.HostName)) return;
@@ -374,6 +482,9 @@ namespace ADReplic.App.ViewModels
             _lastAuditWasSingleDc = false;
             ForestName = null;
             HealthScore = null;
+            AuditSummary = null;
+            SelectedFailure = null;
+            SelectedIssue = null;
 
             var singleDcMode = IsSingleDcMode;
             var targetDc = _targetDcHostName;
@@ -436,6 +547,7 @@ namespace ADReplic.App.ViewModels
                         _lastDnsHealth, _lastPortHealth);
                     HealthScore = snapshot.HealthScore;
                     foreach (var issue in snapshot.Issues) Issues.Add(issue);
+                    AuditSummary = AuditSummaryWriter.Write(snapshot);
 
                     _lastAuditWasSingleDc = singleDcMode;
                     finalSnapshot = snapshot;
