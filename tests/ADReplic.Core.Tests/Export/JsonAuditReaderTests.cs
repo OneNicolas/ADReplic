@@ -72,6 +72,45 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
+        public void Rebuild_replays_current_detectors_on_a_snapshot_read_from_file()
+        {
+            // « Ouvrir un audit JSON » (v0.8.0) : un fichier archivé sans relatedHost ni
+            // issues doit, une fois relu, retrouver DC_UNREACHABLE et le regroupement,
+            // tout en gardant sa date de génération d'origine.
+            var generatedAt = new DateTime(2026, 10, 1, 9, 30, 0);
+            var input = new AuditSnapshot
+            {
+                ForestName = "exemple.local",
+                GeneratedAt = generatedAt,
+                GeneratedBy = "audit-user",
+                GeneratedOn = "SRV-ADMIN-01",
+                DomainControllers = new[]
+                {
+                    new DomainControllerInfo { HostName = "dc01.exemple.local", IsReachable = true },
+                    new DomainControllerInfo { HostName = "dc02.exemple.local", IsReachable = false }
+                },
+                ReplicationLinks = new ReplicationLink[0],
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                Sites = new SiteInfo[0],
+                SiteLinks = new SiteLinkInfo[0],
+                PortHealth = new PortHealthResult
+                {
+                    Checks = new[] { new PortCheckResult { HostName = "dc02.exemple.local", Port = 389, Status = PortCheckStatus.Timeout, ServiceLabel = "LDAP" } }
+                }
+            };
+
+            var rebuilt = AuditSnapshotBuilder.Rebuild(RoundTrip(input, _tempFile));
+
+            Assert.Equal(generatedAt, rebuilt.GeneratedAt);
+            Assert.Equal("audit-user", rebuilt.GeneratedBy);
+            Assert.Equal("SRV-ADMIN-01", rebuilt.GeneratedOn);
+            Assert.NotNull(rebuilt.HealthScore);
+            Assert.Contains(rebuilt.Issues, i => i.Code == "DC_UNREACHABLE" && i.RelatedHost == "dc02.exemple.local");
+            var group = Assert.Single(IssueGrouper.Group(rebuilt.Issues), g => g.Parent.Code == "DC_UNREACHABLE");
+            Assert.Single(group.Children);
+        }
+
+        [Fact]
         public void Round_trip_minimal_snapshot()
         {
             var input = new AuditSnapshot

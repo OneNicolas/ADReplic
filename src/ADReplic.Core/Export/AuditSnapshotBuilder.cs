@@ -50,6 +50,35 @@ namespace ADReplic.Core.Export
             return snapshot;
         }
 
+        /// <summary>
+        /// Rejoue détecteurs, synthèse et score sur un audit relu depuis un fichier
+        /// (v0.8.0, « Ouvrir un audit JSON »). Les données collectées sont conservées
+        /// telles quelles, ainsi que la date, l'auteur et le poste d'origine : seules
+        /// les conclusions sont recalculées avec la version courante — un audit
+        /// archivé par une version antérieure profite ainsi des détecteurs et du
+        /// regroupement d'aujourd'hui.
+        /// </summary>
+        public static AuditSnapshot Rebuild(AuditSnapshot source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            var topology = new TopologySnapshot { Sites = source.Sites, SiteLinks = source.SiteLinks };
+            var rebuilt = Build(
+                source.ForestName,
+                source.DomainControllers,
+                source.ReplicationLinks,
+                topology,
+                source.ReplicationFailures,
+                source.IsSingleDcMode,
+                source.DnsHealth,
+                source.PortHealth);
+
+            rebuilt.GeneratedAt = source.GeneratedAt;
+            rebuilt.GeneratedBy = source.GeneratedBy;
+            rebuilt.GeneratedOn = source.GeneratedOn;
+            return rebuilt;
+        }
+
         private static AuditSummary ComputeSummary(
             IReadOnlyList<DomainControllerInfo> dcs,
             IReadOnlyList<ReplicationLink> links)

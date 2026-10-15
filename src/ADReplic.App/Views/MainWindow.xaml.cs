@@ -123,6 +123,7 @@ namespace ADReplic.App.Views
                 vm.OnEditCredentials   = () => ShowCredentialsDialog(vm);
                 vm.OnOpenCompareDialog = () => ShowCompareDialog(vm);
                 vm.OnShowAlert         = ShowToast;
+                vm.OnPickJsonFile      = AskPickJsonPath;
 
                 // Le sous-VM Compare a besoin de son propre OpenFileDialog (filtré JSON).
                 vm.Compare.OnPickFile = AskPickJsonPath;

@@ -61,6 +61,7 @@ namespace ADReplic.App.ViewModels
         private IssueRowViewModel _selectedIssueRow;
         private bool _hasAuditData;
         private bool _lastAuditFailed;
+        private readonly IJsonAuditReader _jsonReader = new JsonAuditReader();
 
         // === Monitoring state ===============================================
         private bool _isAutoRefreshEnabled;
@@ -138,6 +139,7 @@ namespace ADReplic.App.ViewModels
             CopyFailureDiagnosticCommand = new RelayCommand<object>(_ => CopyFailureDiagnostic(), _ => SelectedFailure != null);
             CopyIssueDiagnosticCommand   = new RelayCommand<object>(_ => CopyIssueDiagnostic(),   _ => SelectedIssue != null);
             CopyTextCommand              = new RelayCommand<string>(CopyText, t => !string.IsNullOrEmpty(t));
+            OpenJsonAuditCommand         = new RelayCommand<object>(_ => OpenJsonAudit(), _ => !IsBusy);
             CloseFailureDetailCommand    = new RelayCommand<object>(_ => SelectedFailure = null);
             CloseIssueDetailCommand      = new RelayCommand<object>(_ => { SelectedIssueRow = null; SelectedIssue = null; });
             SelectIssueCommand           = new RelayCommand<DetectedIssue>(issue => SelectedIssue = issue, issue => issue != null);
@@ -179,6 +181,10 @@ namespace ADReplic.App.ViewModels
         public ICommand CopyIssueDiagnosticCommand { get; }
         /// <summary>Copie une commande individuelle (paramètre : le texte) depuis le panneau de détail.</summary>
         public ICommand CopyTextCommand { get; }
+        /// <summary>Menu Fichier › Ouvrir un audit JSON (v0.8.0).</summary>
+        public ICommand OpenJsonAuditCommand { get; }
+        /// <summary>Délégué UI : ouvre le sélecteur de fichier JSON, null si annulé.</summary>
+        public Func<string> OnPickJsonFile { get; set; }
         public ICommand CloseFailureDetailCommand { get; }
         public ICommand CloseIssueDetailCommand { get; }
         /// <summary>Sélectionne une conséquence depuis la liste dépliée de l'onglet Diagnostics (v0.8.0).</summary>
@@ -515,9 +521,9 @@ namespace ADReplic.App.ViewModels
             };
         }
 
-        private async Task RefreshAllAsync()
+        /// <summary>Vide toutes les données d'audit affichées (avant un audit ou un chargement de fichier).</summary>
+        private void ClearAuditState()
         {
-            IsBusy = true;
             DomainControllers.Clear();
             ReplicationLinks.Clear();
             ReplicationFailures.Clear();
@@ -538,6 +544,72 @@ namespace ADReplic.App.ViewModels
             SelectedIssueRow = null;
             SelectedIssue = null;
             HasAuditData = false;
+        }
+
+        /// <summary>Score, anomalies (plates et regroupées) et phrase de synthèse d'un snapshot complet.</summary>
+        private void ApplyConclusions(AuditSnapshot snapshot)
+        {
+            HealthScore = snapshot.HealthScore;
+            foreach (var issue in snapshot.Issues) Issues.Add(issue);
+            foreach (var group in IssueGrouper.Group(snapshot.Issues)) IssueRows.Add(new IssueRowViewModel(group));
+            AuditSummary = AuditSummaryWriter.Write(snapshot);
+            _lastAuditFailed = false;
+            HasAuditData = true;
+        }
+
+        /// <summary>
+        /// « Ouvrir un audit JSON » (v0.8.0) : affiche un audit archivé comme s'il
+        /// venait d'être collecté, conclusions recalculées avec la version courante.
+        /// Pas d'entrée dans l'historique de surveillance : ce n'est pas une mesure
+        /// nouvelle, c'est une relecture.
+        /// </summary>
+        private void OpenJsonAudit()
+        {
+            var path = OnPickJsonFile?.Invoke();
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            AuditSnapshot snapshot;
+            try
+            {
+                // Lecture AVANT la remise à zéro : un fichier illisible ne doit pas effacer l'audit courant.
+                snapshot = AuditSnapshotBuilder.Rebuild(_jsonReader.Read(path));
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Impossible d'ouvrir cet audit : " + ex.Message;
+                return;
+            }
+
+            ClearAuditState();
+
+            ForestName = snapshot.ForestName;
+            foreach (var dc in snapshot.DomainControllers) DomainControllers.Add(dc);
+            _topology = new TopologySnapshot { Sites = snapshot.Sites, SiteLinks = snapshot.SiteLinks };
+            foreach (var site in snapshot.Sites) Sites.Add(site);
+            foreach (var link in snapshot.SiteLinks) SiteLinks.Add(link);
+            foreach (var l in snapshot.ReplicationLinks) ReplicationLinks.Add(l);
+            foreach (var f in snapshot.ReplicationFailures) ReplicationFailures.Add(f);
+            _lastDnsHealth = snapshot.DnsHealth;
+            _lastPortHealth = snapshot.PortHealth;
+            if (_lastDnsHealth?.Checks != null)
+                foreach (var c in _lastDnsHealth.Checks) DnsChecks.Add(c);
+            if (_lastPortHealth?.Checks != null)
+                foreach (var c in _lastPortHealth.Checks) PortChecks.Add(c);
+            _lastAuditWasSingleDc = snapshot.IsSingleDcMode;
+
+            ApplyConclusions(snapshot);
+
+            var origin = snapshot.GeneratedAt == default(DateTime)
+                ? ""
+                : $" du {snapshot.GeneratedAt:dd/MM/yyyy HH:mm}";
+            AuditSummary = $"Audit{origin} chargé depuis {Path.GetFileName(path)} — " + AuditSummary;
+            StatusMessage = $"Audit chargé : {path}";
+        }
+
+        private async Task RefreshAllAsync()
+        {
+            IsBusy = true;
+            ClearAuditState();
 
             var singleDcMode = IsSingleDcMode;
             var targetDc = _targetDcHostName;
@@ -598,15 +670,10 @@ namespace ADReplic.App.ViewModels
                     var snapshot = AuditSnapshotBuilder.Build(
                         ForestName, dcs, links, _topology, failures, singleDcMode,
                         _lastDnsHealth, _lastPortHealth);
-                    HealthScore = snapshot.HealthScore;
-                    foreach (var issue in snapshot.Issues) Issues.Add(issue);
-                    foreach (var group in IssueGrouper.Group(snapshot.Issues)) IssueRows.Add(new IssueRowViewModel(group));
-                    AuditSummary = AuditSummaryWriter.Write(snapshot);
+                    ApplyConclusions(snapshot);
 
                     _lastAuditWasSingleDc = singleDcMode;
                     finalSnapshot = snapshot;
-                    _lastAuditFailed = false;
-                    HasAuditData = true;
                 }
             }
             catch (OperationCanceledException)
