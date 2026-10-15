@@ -53,6 +53,17 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 - **Visible partout** — pastille verte/rouge en tête de l'onglet Contrôleurs (avec tooltip), mention *(injoignable)* dans le rapport HTML, colonne `IsReachable` dans `dc.csv`, bascule de joignabilité tracée dans le diff de comparaison
 - **Onglets clarifiés** — bandeaux d'état vide sur Échecs actifs et Réplication (« ✓ Aucun échec en cours » vs grille vide ambiguë), ligne synthétique explicite pour un DC injoignable, tri des échecs par sévérité d'abord
 
+### Lisibilité pour les non-experts (v0.7.0)
+- **Catalogue d'erreurs de réplication** — 22 codes courants (1722, 8453, 8524, 8606, 8614, -2146893022…) traduits en français clair : ce que ça veut dire, causes probables, quoi vérifier, commandes prêtes à copier, lien Microsoft Learn ; fiche générique pour tout code inconnu
+- **Base de connaissance des anomalies** — chaque détecteur est complété par un *Pourquoi c'est important* et un *Que faire* en étapes numérotées, appliqués par l'agrégateur sans toucher aux détecteurs
+- **Phrase de synthèse** — une ligne en français clair sous le header (et en tête du rapport HTML) : *« 1 échec de réplication depuis 3 j entre srv-dc-01 et srv-dc-02 (serveur RPC injoignable) ; 2 anomalies à traiter dont 1 critique. »*
+- **Panneau de détail** — sous les grilles Échecs actifs et Diagnostics : constat, impact, étapes, commandes à copier une par une, lien documentation
+- **Copier le diagnostic** — une fiche autonome placée dans le presse-papiers en texte brut **et** en HTML (Outlook/Teams collent le HTML, un ticket texte prend le brut)
+- **Durées humaines** — « 3 j 4 h » plutôt qu'un timestamp ; titre d'erreur clair dans la grille, message système brut en tooltip
+- **Exports enrichis** — colonnes `Impact` / `Recommendation` / `DocumentationUrl` (anomalies) et `ErrorTitle` (échecs) dans les CSV, blocs « Comment corriger » repliables dans le HTML ; JSON inchangé pour les champs calculés
+- **`Get-ADRErrorExplanation`** — le catalogue en PowerShell, hors ligne : `-Code 1722`, le catalogue complet, ou en pipeline depuis `Get-ADRReplicationFailure`
+- **Exécutable unique** — `ADReplic.exe` à la racine du pack, `Core.dll` fusionnée au build Release (ILRepack) ; plus de `Lancer-GUI.cmd`
+
 ### Interface et workflow
 - **Forêt cible** — interroger une forêt distante depuis un poste hors-domaine
 - **Identifiants alternatifs** — authentification UPN ou DOMAINE\compte
@@ -62,7 +73,7 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 - **Menu contextuel** — clic droit sur un DC pour l'auditer en mode ciblé
 
 ### Automatisation
-- **Module PowerShell binaire** — 9 cmdlets (`Get-ADRDcInventory`, `Get-ADRReplicationStatus`, `Get-ADRReplicationFailure`, `Get-ADRTopology`, `Get-ADRIssue`, `Get-ADRDnsHealth`, `Get-ADRPortHealth`, `Export-ADRAudit`, `Compare-ADRAudit`) + 1 fonction (`Register-ADRScheduledAudit` pour planifier des audits récurrents via Task Scheduler)
+- **Module PowerShell binaire** — 10 cmdlets (`Get-ADRDcInventory`, `Get-ADRReplicationStatus`, `Get-ADRReplicationFailure`, `Get-ADRTopology`, `Get-ADRIssue`, `Get-ADRDnsHealth`, `Get-ADRPortHealth`, `Export-ADRAudit`, `Compare-ADRAudit`, `Get-ADRErrorExplanation`) + 1 fonction (`Register-ADRScheduledAudit` pour planifier des audits récurrents via Task Scheduler)
 - **Mode DC seul** — paramètre `-DcName` sur les cmdlets d'audit pour cibler un contrôleur précis sans énumérer la forêt (v0.6.0)
 - **Comparaison scriptable** — `Compare-ADRAudit -SignificantOnly` retourne les dégradations entre deux audits JSON : sortie vide = rien de grave, idéal pour déclencher une alerte mail/webhook (v0.6.0)
 - **Module legacy `ADForestAudit`** — surcouche PowerShell avec API FR + alias EN (compatibilité scripts existants)
@@ -170,12 +181,11 @@ dotnet run --project src/ADReplic.App
 ```
 
 Le dossier `dist/ADReplic-{version}/` contient :
-- `App/ADReplic.exe` (single-file, ~200 Ko)
+- `ADReplic.exe` à la racine (exécutable unique ~250 Ko : `ADReplic.Core.dll` y est fusionnée au build Release via ILRepack, voir `src/ADReplic.App/ILRepack.targets`)
+- `ADReplic.exe.config`
 - `Module/ADReplic/` (module PowerShell binaire + script imbriqué)
 - `Module/ADForestAudit/` (module legacy)
-- `Lancer-GUI.cmd` (raccourci pour ne pas avoir à ouvrir le sous-dossier App)
 - `Lancer-PowerShell.cmd` (session PowerShell avec modules pré-chargés)
-- `ADReplic.ico` (icone multi-résolution pour création de raccourcis manuels)
 - `README.txt` (notice utilisateur final)
 
 ## Workflow de release
@@ -225,6 +235,11 @@ if (Compare-ADRAudit -ReferencePath $ref -CurrentPath $cur -SignificantOnly) {
     Send-MailMessage -Subject "ADReplic : degradation detectee" ...
 }
 
+# Expliquer un code d'erreur en français clair, hors ligne (v0.7.0)
+Get-ADRErrorExplanation -Code 1722
+Get-ADRReplicationFailure | Get-ADRErrorExplanation | Select-Object Code, Title, Commands
+Get-ADRErrorExplanation | Format-Table Code, Title   # tout le catalogue
+
 # Export complet (sondes activées par défaut)
 Export-ADRAudit -Path C:\Temp\audit.html -Format HTML
 Export-ADRAudit -Path C:\Temp\audit-fast.html -Format HTML -SkipHealthProbes
@@ -257,6 +272,7 @@ Aucune donnée sensible n'est persistée — les identifiants saisis dans le dia
 
 | Version | Date | Apports majeurs |
 |---|---|---|
+| **0.7.0** | octobre 2026 | « Lisibilité pour les non-experts » : catalogue de 22 codes d'erreur de réplication en français clair (causes, vérifications, commandes, lien Microsoft Learn), base de connaissance Impact / Que faire pour les 15 détecteurs, phrase de synthèse en une ligne (GUI + HTML), panneau de détail sous Échecs actifs et Diagnostics, bouton « Copier le diagnostic » (texte + HTML dans le presse-papiers), durées humaines, exports CSV/HTML enrichis, cmdlet `Get-ADRErrorExplanation`, exécutable unique à la racine du pack (ILRepack) |
 | **0.6.0** | juillet 2026 | « DC injoignable de bout en bout » : flag `IsReachable` + détecteur `DC_UNREACHABLE` (Critical) + détection croisée `DNS_SRV_POINTS_TO_DEAD_DC` (15 détecteurs), pastille de joignabilité GUI/HTML, bandeaux d'état vide, cmdlet `Compare-ADRAudit` (`-SignificantOnly` pour l'automatisation), paramètre `-DcName` sur 4 cmdlets, garde-fou Credential à deux couches, script de test du module embarqué dans le pack |
 | **0.5.0** | mai 2026 | « ADReplic au fil du temps » : comparaison de deux audits JSON (delta par catégorie + 6 critères de changements significatifs), surveillance automatique (intervalle configurable, ring buffer historique des scores, snapshots disque rotatifs, alertes visuelles badge + toast), 9ème onglet Comparaison conditionnel, JsonAuditReader maison (sans NuGet), résilience aux DCs injoignables dans l'inventaire |
 | **0.4.0** | mai 2026 | Sondes DNS et Réseau (4 SRV + A records, 9 ports TCP) avec P/Invoke `DnsQuery_W` et `TcpClient`, scoring tripartite renormalisé, 6 nouveaux détecteurs, 2 onglets GUI, 2 cmdlets PowerShell, planification via `Register-ADRScheduledAudit`, icône `.exe` multi-résolution générée depuis le XAML |
