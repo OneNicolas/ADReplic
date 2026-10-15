@@ -26,7 +26,11 @@ param(
 
     [switch]$SkipZip,
 
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+
+    # Saute la signature Azure Artifact Signing (builds de dev sans identite
+    # configuree). Un pack Release destine a etre diffuse doit etre signe.
+    [switch]$SkipSign
 )
 
 $ErrorActionPreference = 'Stop'
@@ -95,9 +99,11 @@ UTILISATION
    fichier du pack et peut etre copie seul (avec ADReplic.exe.config)
    sur un poste ou un serveur.
 
-   Si Windows affiche un avertissement SmartScreen au premier lancement
-   (fichier telecharge depuis Internet), cliquez sur "Informations
-   complementaires" puis "Executer quand meme".
+   L'executable et le module PowerShell sont signes numeriquement par
+   SCOPI (certificat Microsoft Azure Artifact Signing, horodate) : les
+   proprietes du fichier, onglet "Signatures numeriques", doivent afficher
+   SCOPI. Si un avertissement SmartScreen "editeur inconnu" apparait,
+   le fichier a ete modifie ou mal telecharge : ne l'executez pas.
 
 2) Console PowerShell :
    Double-clic sur Lancer-PowerShell.cmd
@@ -240,6 +246,25 @@ Copy-Item (Join-Path $PSScriptRoot 'Test-PowerShellModule.ps1') -Destination $pa
 
 # Plus d'ADReplic.ico a la racine : l'exe etant lui-meme a la racine, Windows
 # en extrait l'icone directement pour les raccourcis.
+
+# ------------------------------------------------------------
+# Signature Azure Artifact Signing (v0.7.1) : avant le zip, sous pwsh
+# (le module TrustedSigning ne tourne pas sous Windows PowerShell).
+# Echec bloquant : on ne livre pas un pack non signe par accident.
+# ------------------------------------------------------------
+if ($SkipSign) {
+    Write-Warning "Signature ignoree (-SkipSign) : ce pack declenchera SmartScreen et RemoteSigned."
+} else {
+    Write-Host "==> Signature Azure Artifact Signing" -ForegroundColor Cyan
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+    if (-not $pwsh) {
+        throw "pwsh (PowerShell 7) introuvable : requis par le module TrustedSigning. Installez-le ou relancez avec -SkipSign."
+    }
+    & $pwsh.Source -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'Sign-Pack.ps1') -PackRoot $packRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Signature echouee (code $LASTEXITCODE). Verifiez les variables AZURE_* (set-azure-signing-secret.ps1) ou relancez avec -SkipSign."
+    }
+}
 
 if (-not $SkipZip) {
     Write-Host "==> Creation de l'archive" -ForegroundColor Cyan

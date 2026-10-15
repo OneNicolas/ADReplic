@@ -180,6 +180,8 @@ dotnet run --project src/ADReplic.App
 .\build\publish.ps1
 ```
 
+Depuis la v0.7.1, `publish.ps1` signe le pack (exe, DLL, scripts et manifestes PowerShell) avec **Azure Artifact Signing** (certificat Public Trust SCOPI, horodatage RFC 3161) via `build/Sign-Pack.ps1`, exécuté sous pwsh avec le module `TrustedSigning`. Les paramètres publics du compte sont dans `build/signing.json` ; l'identité vient des variables d'environnement utilisateur `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` (jamais versionnées). Pour un build de dev sans identité : `.\build\publish.ps1 -SkipSign`.
+
 Le dossier `dist/ADReplic-{version}/` contient :
 - `ADReplic.exe` à la racine (exécutable unique ~250 Ko : `ADReplic.Core.dll` y est fusionnée au build Release via ILRepack, voir `src/ADReplic.App/ILRepack.targets`)
 - `ADReplic.exe.config`
@@ -272,6 +274,7 @@ Aucune donnée sensible n'est persistée — les identifiants saisis dans le dia
 
 | Version | Date | Apports majeurs |
 |---|---|---|
+| **0.7.1** | octobre 2026 | Pack signé numériquement (Azure Artifact Signing, certificat Public Trust SCOPI, horodatage RFC 3161) : exe, DLL, scripts et manifestes PowerShell. Plus d'avertissement SmartScreen « éditeur inconnu », module compatible `RemoteSigned`. `publish.ps1 -SkipSign` pour les builds de dev |
 | **0.7.0** | octobre 2026 | « Lisibilité pour les non-experts » : catalogue de 22 codes d'erreur de réplication en français clair (causes, vérifications, commandes, lien Microsoft Learn), base de connaissance Impact / Que faire pour les 15 détecteurs, phrase de synthèse en une ligne (GUI + HTML), panneau de détail sous Échecs actifs et Diagnostics, bouton « Copier le diagnostic » (texte + HTML dans le presse-papiers), durées humaines, exports CSV/HTML enrichis, cmdlet `Get-ADRErrorExplanation`, exécutable unique à la racine du pack (ILRepack) |
 | **0.6.0** | juillet 2026 | « DC injoignable de bout en bout » : flag `IsReachable` + détecteur `DC_UNREACHABLE` (Critical) + détection croisée `DNS_SRV_POINTS_TO_DEAD_DC` (15 détecteurs), pastille de joignabilité GUI/HTML, bandeaux d'état vide, cmdlet `Compare-ADRAudit` (`-SignificantOnly` pour l'automatisation), paramètre `-DcName` sur 4 cmdlets, garde-fou Credential à deux couches, script de test du module embarqué dans le pack |
 | **0.5.0** | mai 2026 | « ADReplic au fil du temps » : comparaison de deux audits JSON (delta par catégorie + 6 critères de changements significatifs), surveillance automatique (intervalle configurable, ring buffer historique des scores, snapshots disque rotatifs, alertes visuelles badge + toast), 9ème onglet Comparaison conditionnel, JsonAuditReader maison (sans NuGet), résilience aux DCs injoignables dans l'inventaire |

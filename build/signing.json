@@ -1,0 +1,10 @@
+{
+  "comment": "Azure Artifact Signing (ex Trusted Signing) : parametres publics du compte SCOPI. Aucun secret ici : l'identite vient des variables d'environnement utilisateur AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET.",
+  "endpoint": "https://weu.codesigning.azure.net",
+  "codeSigningAccountName": "scopisigning",
+  "certificateProfileName": "scopi-public-trust",
+  "fileDigest": "SHA256",
+  "timestampRfc3161": "http://timestamp.acs.microsoft.com",
+  "timestampDigest": "SHA256",
+  "signableExtensions": [ ".exe", ".dll", ".ps1", ".psd1", ".psm1" ]
+}
