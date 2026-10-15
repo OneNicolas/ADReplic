@@ -71,6 +71,19 @@ namespace ADReplic.Core.Tests.Export
             Assert.Null(output.Issues[1].RelatedHost);
         }
 
+        [Theory]
+        [InlineData("{\"name\":\"mon-app\",\"version\":\"1.0.0\"}")]
+        [InlineData("{}")]
+        [InlineData("[1,2,3]")]
+        public void A_json_that_is_not_an_audit_is_rejected(string json)
+        {
+            // Vu sur le poste de test : un package.json ouvert via Fichier > Ouvrir donnait
+            // « 0 contrôleur de domaine, 100/100 Excellent ». Le lecteur doit refuser.
+            var ex = Assert.ThrowsAny<Exception>(() => new JsonAuditReader().ReadFromString(json));
+
+            Assert.Contains("pas un audit ADReplic", ex.Message);
+        }
+
         [Fact]
         public void Rebuild_replays_current_detectors_on_a_snapshot_read_from_file()
         {

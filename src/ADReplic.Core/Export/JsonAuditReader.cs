@@ -45,8 +45,26 @@ namespace ADReplic.Core.Export
 
             var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
             var raw = serializer.DeserializeObject(json);
-            var converted = Convert(raw, typeof(AuditSnapshot));
-            return (AuditSnapshot)converted;
+
+            // Le mapping est tolérant (champ absent = vide) : sans ce garde-fou, un
+            // JSON quelconque devient un audit de 0 DC noté 100/100 « Tout fonctionne ».
+            if (!LooksLikeAudit(raw))
+            {
+                throw new InvalidDataException(
+                    "Ce fichier n'est pas un audit ADReplic (aucun champ du format d'audit reconnu).");
+            }
+
+            return (AuditSnapshot)Convert(raw, typeof(AuditSnapshot));
+        }
+
+        /// <summary>Un objet JSON dont au moins une clé correspond à une propriété d'AuditSnapshot.</summary>
+        private static bool LooksLikeAudit(object raw)
+        {
+            if (!(raw is IDictionary<string, object> dict)) return false;
+            var known = new HashSet<string>(
+                typeof(AuditSnapshot).GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.Name),
+                StringComparer.OrdinalIgnoreCase);
+            return dict.Keys.Any(known.Contains);
         }
 
         // === Cœur du mapping : object brut -> instance typée =====================
