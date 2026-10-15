@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -19,7 +20,40 @@ namespace ADReplic.App.Views
             InitializeComponent();
             Loaded += OnLoaded;
             SetupWindowIcon();
+            WireDetailPanelResize(FailureDetailSplitter, FailureDetailPanel);
+            WireDetailPanelResize(IssueDetailSplitter, IssueDetailPanel);
         }
+
+        /// <summary>
+        /// Les panneaux de détail s'ouvrent plafonnés (MaxHeight en XAML) pour ne pas
+        /// écraser la grille. Quand l'utilisateur saisit la poignée, c'est lui qui
+        /// décide de la taille : on lève le plafond, sinon la ligne de grille grandit
+        /// mais le panneau reste à 320 px, centré dans le vide. À la fermeture du
+        /// panneau on rétablit le plafond et on rend la ligne à son mode Auto, sans
+        /// quoi la hauteur fixée par la poignée laisserait un trou sous la grille.
+        /// </summary>
+        private static void WireDetailPanelResize(GridSplitter splitter, FrameworkElement panel)
+        {
+            var openingMaxHeight = panel.MaxHeight;
+
+            splitter.DragStarted += (_, __) =>
+            {
+                // Figer d'abord la ligne à sa hauteur courante : sinon, entre la levée du
+                // plafond et le premier mouvement, la ligne Auto prendrait toute la hauteur du contenu.
+                DetailRowOf(panel).Height = new GridLength(panel.ActualHeight);
+                panel.MaxHeight = double.PositiveInfinity;
+            };
+
+            panel.IsVisibleChanged += (_, e) =>
+            {
+                if ((bool)e.NewValue) return;
+                panel.MaxHeight = openingMaxHeight;
+                DetailRowOf(panel).ClearValue(RowDefinition.HeightProperty);
+            };
+        }
+
+        private static RowDefinition DetailRowOf(FrameworkElement panel)
+            => ((Grid)panel.Parent).RowDefinitions[Grid.GetRow(panel)];
 
         /// <summary>
         /// Convertit le DrawingImage vectoriel défini dans App.xaml en BitmapSource

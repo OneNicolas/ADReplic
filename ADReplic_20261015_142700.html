@@ -1,0 +1,205 @@
+﻿<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>Audit AD — lyceerondeau.bsg</title>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 13px;
+       color: #1b1f23; background: #f5f6f8; margin: 0; padding: 0; }
+.hdr { background: #ffffff; padding: 24px 32px; border-bottom: 1px solid #d0d7de; }
+.hdr h1 { margin: 0 0 6px; font-size: 22px; font-weight: 600; }
+.hdr .meta { margin: 0; color: #586069; font-size: 13px; }
+.cards { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px 32px; }
+.card { background: #fff; border: 1px solid #d0d7de; border-left: 4px solid #6e7781;
+        padding: 12px 18px; min-width: 140px; border-radius: 4px; }
+.card .v { font-size: 22px; font-weight: 600; }
+.card .l { font-size: 12px; color: #586069; margin-top: 2px; }
+.card.ok      { border-left-color: #1a7f37; }
+.card.warn    { border-left-color: #9a6700; }
+.card.fail    { border-left-color: #d1242f; }
+.card.neutral { border-left-color: #6e7781; }
+section { padding: 8px 32px 24px; }
+section h2 { font-size: 15px; font-weight: 600; margin: 18px 0 10px; }
+table { width: 100%; border-collapse: collapse; background: #fff;
+        border: 1px solid #d0d7de; border-radius: 4px; overflow: hidden; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eaeef2;
+         vertical-align: top; }
+th { background: #f6f8fa; font-weight: 600; font-size: 12px; color: #586069; }
+tr:last-child td { border-bottom: none; }
+td.mono { font-family: Consolas, 'SF Mono', monospace; font-size: 12px; color: #424a53; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #6e7781; }
+.dot.ok    { background: #1a7f37; }
+.dot.warn  { background: #9a6700; }
+.dot.fail  { background: #d1242f; }
+.empty { color: #6e7781; font-style: italic; }
+.banner { padding: 14px 18px; border-radius: 4px; border: 1px solid; font-size: 13px; }
+.banner.ok   { background: #ddf4e4; border-color: #2da44e; color: #1a7f37; }
+.banner.warn { background: #fff4d6; border-color: #d4a72c; color: #7d4e00; }
+.banner.fail { background: #ffebe9; border-color: #d1242f; color: #82071e; }
+.health-badge { display: inline-flex; align-items: center; gap: 18px;
+                margin-top: 14px; padding: 12px 18px; border-radius: 6px;
+                color: #fff; }
+.health-badge.ok   { background: #1a7f37; }
+.health-badge.warn { background: #9a6700; }
+.health-badge.fail { background: #d1242f; }
+.health-badge .hb-score { font-size: 24px; font-weight: 700; line-height: 1; }
+.health-badge .hb-score span { font-size: 14px; font-weight: 500; opacity: 0.85; }
+.health-badge .hb-label { font-size: 13px; font-weight: 600; }
+.health-badge .hb-summary { font-size: 12px; opacity: 0.92; margin-top: 2px; }
+footer { padding: 18px 32px; color: #6e7781; font-size: 12px; border-top: 1px solid #d0d7de; }
+/* v0.7.0 : lisibilite */
+.banner.neutral { background: #f6f8fa; border-color: #d0d7de; color: #1b1f23; }
+.plain-summary { margin: 16px 32px 0; font-size: 14px; font-weight: 500; }
+.muted { color: #6e7781; font-size: 11px; }
+.mono { font-family: Consolas, 'SF Mono', monospace; }
+ol.steps { margin: 0; padding-left: 18px; }
+ol.steps li { margin: 2px 0; }
+.doclink { margin: 6px 0 0; font-size: 12px; }
+.doclink a { color: #0969da; text-decoration: none; }
+section h3 { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: #424a53; }
+details.remediation { background: #fff; border: 1px solid #d0d7de; border-radius: 4px;
+                      padding: 10px 14px; margin: 0 0 8px; }
+details.remediation summary { cursor: pointer; font-weight: 600; }
+details.remediation .sub { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: #586069; }
+details.remediation ul, details.remediation ol { margin: 0; padding-left: 20px; }
+details.remediation code { font-family: Consolas, 'SF Mono', monospace; font-size: 12px;
+                           background: #f6f8fa; padding: 1px 5px; border-radius: 3px; }
+tr.derived-row > td { background: #f6f8fa; padding: 4px 10px 4px 28px; }
+details.derived summary { cursor: pointer; font-size: 12px; color: #586069; }
+details.derived table.inner { margin: 6px 0 2px; }
+details.derived table.inner td { font-size: 12px; }
+</style>
+</head><body>
+<header class="hdr">
+  <h1>Audit de réplication Active Directory</h1>
+  <p class="meta">Forêt : <strong>lyceerondeau.bsg</strong> &nbsp;·&nbsp; Généré le 15/10/2026 14:27 par Scopi@SRV-APP-01</p>
+  <div class="health-badge fail">
+    <div class="hb-score">58<span>/100</span></div>
+    <div class="hb-meta"><div class="hb-label">Critique</div><div class="hb-summary">1 lien(s) en échec ou injoignable(s), 1 échec(s) de réplication actifs, 3 port(s) critique(s) inaccessible(s) (LDAP/Kerberos/SMB), 6 port(s) en timeout.</div></div>
+  </div>
+</header>
+<div class="banner fail plain-summary">1 contrôleur de domaine sur 2 est injoignable (son état réel est inconnu).</div>
+<section class="cards">
+  <div class="card neutral"><div class="v">2</div><div class="l">Contrôleurs</div></div>
+  <div class="card neutral"><div class="v">6</div><div class="l">Liens de réplication</div></div>
+  <div class="card ok"><div class="v">5</div><div class="l">Sains</div></div>
+  <div class="card warn"><div class="v">0</div><div class="l">Avertissements</div></div>
+  <div class="card fail"><div class="v">0</div><div class="l">En échec</div></div>
+  <div class="card fail"><div class="v">1</div><div class="l">DC injoignables</div></div>
+</section>
+<section><h2>Diagnostics</h2>
+<table><thead><tr>
+<th></th><th>Sévérité</th><th>Code</th><th>Anomalie</th><th>Éléments concernés</th><th>Constat</th><th>Pourquoi c'est important</th><th>Que faire</th>
+</tr></thead><tbody>
+<tr><td><span class="dot fail"></span></td><td>Critical</td><td class="mono">DC_UNREACHABLE</td><td>Contrôleur de domaine injoignable : SRV-CD-02.lyceerondeau.bsg</td><td>SRV-CD-02.lyceerondeau.bsg</td><td>Ce DC est déclaré dans l'annuaire mais n'a répondu à aucune interrogation pendant l'audit. Il est probablement éteint, isolé du réseau, ou son service AD DS (NTDS) est arrêté. Vérifiez l'état de la machine et sa connectivité. S'il a été retiré définitivement sans rétrogradation propre, nettoyez ses métadonnées (metadata cleanup) pour éviter les SRV orphelins et les échecs de réplication persistants.</td><td>Les utilisateurs de son site s'authentifient sur un autre DC, souvent à travers le WAN : ouvertures de session lentes, GPO non appliquées. Ses propres changements ne se propagent plus, et plus il reste isolé, plus le risque d'objets persistants grandit.</td><td><ol class="steps"><li>Vérifier que la machine est allumée et répond au ping.</li><li>Vérifier le service AD DS (NTDS) et le pare-feu sur le DC.</li><li>Vérifier la résolution DNS de son nom depuis le poste d'audit.</li><li>S'il a été retiré définitivement : nettoyer ses métadonnées (ntdsutil metadata cleanup) et ses enregistrements DNS.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/active-directory/diagnose-replication-failures" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr class="derived-row"><td colspan="8">
+<details class="derived"><summary>10 anomalies liées à l'indisponibilité de SRV-CD-02.lyceerondeau.bsg</summary>
+<table class="inner"><tbody>
+<tr><td><span class="dot fail"></span></td><td>Critical</td><td class="mono">PORT_CRITICAL_CLOSED</td><td>Port AD critique inaccessible : SRV-CD-02.lyceerondeau.bsg:389 (LDAP)</td><td>SRV-CD-02.lyceerondeau.bsg:389</td><td>Le port 389 (LDAP) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Sans ce port, le DC ne peut pas servir les fonctions essentielles d'AD (authentification, annuaire ou partage SYSVOL). Vérifiez le pare-feu local, le routage réseau et l'état du service correspondant sur le DC.</td><td>Port 389 fermé : plus d'annuaire, les clients basculent sur un autre DC ou échouent. Port 88 fermé : plus d'authentification Kerberos. Port 445 fermé : plus de GPO ni de scripts d'ouverture de session (SYSVOL). Si c'est le seul DC du site, tous les utilisateurs du site sont touchés.</td><td><ol class="steps"><li>Vérifier le pare-feu Windows du DC et les règles réseau entre le poste d'audit et le DC.</li><li>Vérifier que le service correspondant tourne : NTDS pour 389/88, Server (LanmanServer) pour 445.</li><li>Tester depuis un autre segment réseau pour isoler un filtrage intermédiaire : Test-NetConnection &lt;dc&gt; -Port &lt;port&gt;.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot fail"></span></td><td>Critical</td><td class="mono">PORT_CRITICAL_CLOSED</td><td>Port AD critique inaccessible : SRV-CD-02.lyceerondeau.bsg:445 (SMB)</td><td>SRV-CD-02.lyceerondeau.bsg:445</td><td>Le port 445 (SMB) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Sans ce port, le DC ne peut pas servir les fonctions essentielles d'AD (authentification, annuaire ou partage SYSVOL). Vérifiez le pare-feu local, le routage réseau et l'état du service correspondant sur le DC.</td><td>Port 389 fermé : plus d'annuaire, les clients basculent sur un autre DC ou échouent. Port 88 fermé : plus d'authentification Kerberos. Port 445 fermé : plus de GPO ni de scripts d'ouverture de session (SYSVOL). Si c'est le seul DC du site, tous les utilisateurs du site sont touchés.</td><td><ol class="steps"><li>Vérifier le pare-feu Windows du DC et les règles réseau entre le poste d'audit et le DC.</li><li>Vérifier que le service correspondant tourne : NTDS pour 389/88, Server (LanmanServer) pour 445.</li><li>Tester depuis un autre segment réseau pour isoler un filtrage intermédiaire : Test-NetConnection &lt;dc&gt; -Port &lt;port&gt;.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot fail"></span></td><td>Critical</td><td class="mono">PORT_CRITICAL_CLOSED</td><td>Port AD critique inaccessible : SRV-CD-02.lyceerondeau.bsg:88 (Kerberos)</td><td>SRV-CD-02.lyceerondeau.bsg:88</td><td>Le port 88 (Kerberos) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Sans ce port, le DC ne peut pas servir les fonctions essentielles d'AD (authentification, annuaire ou partage SYSVOL). Vérifiez le pare-feu local, le routage réseau et l'état du service correspondant sur le DC.</td><td>Port 389 fermé : plus d'annuaire, les clients basculent sur un autre DC ou échouent. Port 88 fermé : plus d'authentification Kerberos. Port 445 fermé : plus de GPO ni de scripts d'ouverture de session (SYSVOL). Si c'est le seul DC du site, tous les utilisateurs du site sont touchés.</td><td><ol class="steps"><li>Vérifier le pare-feu Windows du DC et les règles réseau entre le poste d'audit et le DC.</li><li>Vérifier que le service correspondant tourne : NTDS pour 389/88, Server (LanmanServer) pour 445.</li><li>Tester depuis un autre segment réseau pour isoler un filtrage intermédiaire : Test-NetConnection &lt;dc&gt; -Port &lt;port&gt;.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot warn"></span></td><td>Warning</td><td class="mono">DNS_SRV_POINTS_TO_DEAD_DC</td><td>Enregistrements SRV pointant vers un DC injoignable : srv-cd-02.lyceerondeau.bsg</td><td>_gc._tcp.lyceerondeau.bsg, _kerberos._tcp.lyceerondeau.bsg, _kpasswd._tcp.lyceerondeau.bsg, _ldap._tcp.dc._msdcs.lyceerondeau.bsg</td><td>Ces enregistrements SRV se résolvent correctement mais leur cible ne répond sur aucun port AD critique (LDAP 389, Kerberos 88). Les clients qui sélectionnent ce SRV subiront des délais ou des échecs de localisation de DC. Si l'hôte est définitivement retiré, supprimez ses enregistrements de la zone DNS (ou lancez un metadata cleanup) ; s'il est simplement down, restaurez-le.</td><td>Les clients qui tirent ce DC au sort dans le DNS attendent le timeout avant de basculer sur un autre : ouvertures de session et applications LDAP ralenties de façon aléatoire. Un DC fantôme dans le DNS est aussi une source classique d'échecs de réplication persistants.</td><td><ol class="steps"><li>Déterminer si le DC est en panne temporaire ou retiré définitivement.</li><li>Panne temporaire : le remettre en service, les enregistrements redeviendront valides.</li><li>Retrait définitif : nettoyer ses métadonnées (ntdsutil metadata cleanup) puis supprimer ses enregistrements SRV, A et CNAME (_msdcs) dans le DNS.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/active-directory/remove-data-after-ad-ds-installation-fails" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot warn"></span></td><td>Warning</td><td class="mono">PORT_CLOSED_OR_FILTERED</td><td>Port AD secondaire inaccessible : SRV-CD-02.lyceerondeau.bsg:135 (RPC Endpoint Mapper)</td><td>SRV-CD-02.lyceerondeau.bsg:135</td><td>Le port 135 (RPC Endpoint Mapper) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Le DC reste fonctionnel pour les opérations essentielles, mais certaines fonctionnalités peuvent être dégradées (résolution DNS croisée, LDAPS, interrogations sur catalogue global). Vérifiez pare-feu et routage si la fonctionnalité concernée est utilisée.</td><td>Le DC continue d'authentifier et de servir l'annuaire. Les fonctions qui dépendent de ce port sont dégradées : LDAPS (636) pour les applications sécurisées, catalogue global (3268/3269), DNS (53) si le DC fait aussi serveur DNS, RPC (135) pour la réplication et les outils d'administration.</td><td><ol class="steps"><li>Déterminer si la fonction portée par ce port est utilisée depuis l'endroit où l'audit a été lancé.</li><li>Si oui : vérifier pare-feu, routage et service associé.</li><li>Si non : documenter le filtrage comme intentionnel pour ne plus être alerté.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot warn"></span></td><td>Warning</td><td class="mono">PORT_CLOSED_OR_FILTERED</td><td>Port AD secondaire inaccessible : SRV-CD-02.lyceerondeau.bsg:3268 (Global Catalog)</td><td>SRV-CD-02.lyceerondeau.bsg:3268</td><td>Le port 3268 (Global Catalog) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Le DC reste fonctionnel pour les opérations essentielles, mais certaines fonctionnalités peuvent être dégradées (résolution DNS croisée, LDAPS, interrogations sur catalogue global). Vérifiez pare-feu et routage si la fonctionnalité concernée est utilisée.</td><td>Le DC continue d'authentifier et de servir l'annuaire. Les fonctions qui dépendent de ce port sont dégradées : LDAPS (636) pour les applications sécurisées, catalogue global (3268/3269), DNS (53) si le DC fait aussi serveur DNS, RPC (135) pour la réplication et les outils d'administration.</td><td><ol class="steps"><li>Déterminer si la fonction portée par ce port est utilisée depuis l'endroit où l'audit a été lancé.</li><li>Si oui : vérifier pare-feu, routage et service associé.</li><li>Si non : documenter le filtrage comme intentionnel pour ne plus être alerté.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot warn"></span></td><td>Warning</td><td class="mono">PORT_CLOSED_OR_FILTERED</td><td>Port AD secondaire inaccessible : SRV-CD-02.lyceerondeau.bsg:3269 (Global Catalog LDAPS)</td><td>SRV-CD-02.lyceerondeau.bsg:3269</td><td>Le port 3269 (Global Catalog LDAPS) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Le DC reste fonctionnel pour les opérations essentielles, mais certaines fonctionnalités peuvent être dégradées (résolution DNS croisée, LDAPS, interrogations sur catalogue global). Vérifiez pare-feu et routage si la fonctionnalité concernée est utilisée.</td><td>Le DC continue d'authentifier et de servir l'annuaire. Les fonctions qui dépendent de ce port sont dégradées : LDAPS (636) pour les applications sécurisées, catalogue global (3268/3269), DNS (53) si le DC fait aussi serveur DNS, RPC (135) pour la réplication et les outils d'administration.</td><td><ol class="steps"><li>Déterminer si la fonction portée par ce port est utilisée depuis l'endroit où l'audit a été lancé.</li><li>Si oui : vérifier pare-feu, routage et service associé.</li><li>Si non : documenter le filtrage comme intentionnel pour ne plus être alerté.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot warn"></span></td><td>Warning</td><td class="mono">PORT_CLOSED_OR_FILTERED</td><td>Port AD secondaire inaccessible : SRV-CD-02.lyceerondeau.bsg:464 (Kerberos Password)</td><td>SRV-CD-02.lyceerondeau.bsg:464</td><td>Le port 464 (Kerberos Password) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Le DC reste fonctionnel pour les opérations essentielles, mais certaines fonctionnalités peuvent être dégradées (résolution DNS croisée, LDAPS, interrogations sur catalogue global). Vérifiez pare-feu et routage si la fonctionnalité concernée est utilisée.</td><td>Le DC continue d'authentifier et de servir l'annuaire. Les fonctions qui dépendent de ce port sont dégradées : LDAPS (636) pour les applications sécurisées, catalogue global (3268/3269), DNS (53) si le DC fait aussi serveur DNS, RPC (135) pour la réplication et les outils d'administration.</td><td><ol class="steps"><li>Déterminer si la fonction portée par ce port est utilisée depuis l'endroit où l'audit a été lancé.</li><li>Si oui : vérifier pare-feu, routage et service associé.</li><li>Si non : documenter le filtrage comme intentionnel pour ne plus être alerté.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot warn"></span></td><td>Warning</td><td class="mono">PORT_CLOSED_OR_FILTERED</td><td>Port AD secondaire inaccessible : SRV-CD-02.lyceerondeau.bsg:53 (DNS)</td><td>SRV-CD-02.lyceerondeau.bsg:53</td><td>Le port 53 (DNS) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Le DC reste fonctionnel pour les opérations essentielles, mais certaines fonctionnalités peuvent être dégradées (résolution DNS croisée, LDAPS, interrogations sur catalogue global). Vérifiez pare-feu et routage si la fonctionnalité concernée est utilisée.</td><td>Le DC continue d'authentifier et de servir l'annuaire. Les fonctions qui dépendent de ce port sont dégradées : LDAPS (636) pour les applications sécurisées, catalogue global (3268/3269), DNS (53) si le DC fait aussi serveur DNS, RPC (135) pour la réplication et les outils d'administration.</td><td><ol class="steps"><li>Déterminer si la fonction portée par ce port est utilisée depuis l'endroit où l'audit a été lancé.</li><li>Si oui : vérifier pare-feu, routage et service associé.</li><li>Si non : documenter le filtrage comme intentionnel pour ne plus être alerté.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+<tr><td><span class="dot warn"></span></td><td>Warning</td><td class="mono">PORT_CLOSED_OR_FILTERED</td><td>Port AD secondaire inaccessible : SRV-CD-02.lyceerondeau.bsg:636 (LDAPS)</td><td>SRV-CD-02.lyceerondeau.bsg:636</td><td>Le port 636 (LDAPS) du DC SRV-CD-02.lyceerondeau.bsg est sans réponse (timeout). Le DC reste fonctionnel pour les opérations essentielles, mais certaines fonctionnalités peuvent être dégradées (résolution DNS croisée, LDAPS, interrogations sur catalogue global). Vérifiez pare-feu et routage si la fonctionnalité concernée est utilisée.</td><td>Le DC continue d'authentifier et de servir l'annuaire. Les fonctions qui dépendent de ce port sont dégradées : LDAPS (636) pour les applications sécurisées, catalogue global (3268/3269), DNS (53) si le DC fait aussi serveur DNS, RPC (135) pour la réplication et les outils d'administration.</td><td><ol class="steps"><li>Déterminer si la fonction portée par ce port est utilisée depuis l'endroit où l'audit a été lancé.</li><li>Si oui : vérifier pare-feu, routage et service associé.</li><li>Si non : documenter le filtrage comme intentionnel pour ne plus être alerté.</li></ol><p class="doclink"><a href="https://learn.microsoft.com/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements" target="_blank" rel="noopener">Documentation Microsoft ↗</a></p></td></tr>
+</tbody></table></details>
+</td></tr>
+</tbody></table></section>
+<section><h2>Santé DNS</h2>
+<div class="banner ok">✓ Tous les enregistrements DNS testés sont résolvables.</div>
+<table><thead><tr>
+<th></th><th>Enregistrement</th><th>Type</th><th>Statut</th><th>Cible</th><th>Port</th><th>IP</th><th>Détail</th>
+</tr></thead><tbody>
+<tr><td><span class="dot ok"></span></td><td class="mono">_ldap._tcp.dc._msdcs.lyceerondeau.bsg</td><td>SRV _ldap</td><td>Ok</td><td>srv-cd-01.lyceerondeau.bsg</td><td class="num">389</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">_ldap._tcp.dc._msdcs.lyceerondeau.bsg</td><td>SRV _ldap</td><td>Ok</td><td>srv-cd-02.lyceerondeau.bsg</td><td class="num">389</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">_kerberos._tcp.lyceerondeau.bsg</td><td>SRV _kerberos</td><td>Ok</td><td>srv-cd-01.lyceerondeau.bsg</td><td class="num">88</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">_kerberos._tcp.lyceerondeau.bsg</td><td>SRV _kerberos</td><td>Ok</td><td>srv-cd-02.lyceerondeau.bsg</td><td class="num">88</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">_gc._tcp.lyceerondeau.bsg</td><td>SRV _gc</td><td>Ok</td><td>srv-cd-01.lyceerondeau.bsg</td><td class="num">3268</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">_gc._tcp.lyceerondeau.bsg</td><td>SRV _gc</td><td>Ok</td><td>srv-cd-02.lyceerondeau.bsg</td><td class="num">3268</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">_kpasswd._tcp.lyceerondeau.bsg</td><td>SRV _kpasswd</td><td>Ok</td><td>srv-cd-01.lyceerondeau.bsg</td><td class="num">464</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">_kpasswd._tcp.lyceerondeau.bsg</td><td>SRV _kpasswd</td><td>Ok</td><td>srv-cd-02.lyceerondeau.bsg</td><td class="num">464</td><td class="mono"></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">SRV-CD-01.lyceerondeau.bsg</td><td>A</td><td>Ok</td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">—</td><td class="mono">1.0.17.172</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td class="mono">SRV-CD-02.lyceerondeau.bsg</td><td>A</td><td>Ok</td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">—</td><td class="mono">2.0.17.172</td><td></td></tr>
+</tbody></table></section>
+<section><h2>Santé réseau (tests de ports)</h2>
+<table><thead><tr>
+<th></th><th>Contrôleur</th><th>Port</th><th>Service</th><th>Statut</th><th>Temps de réponse</th><th>Détail</th>
+</tr></thead><tbody>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">53</td><td>DNS</td><td>Timeout</td><td class="num">2001 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">88</td><td>Kerberos</td><td>Timeout</td><td class="num">2001 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">135</td><td>RPC Endpoint Mapper</td><td>Timeout</td><td class="num">2001 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">389</td><td>LDAP</td><td>Timeout</td><td class="num">2000 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">445</td><td>SMB</td><td>Timeout</td><td class="num">2000 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">464</td><td>Kerberos Password</td><td>Timeout</td><td class="num">2000 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">636</td><td>LDAPS</td><td>Timeout</td><td class="num">2000 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">3268</td><td>Global Catalog</td><td>Timeout</td><td class="num">2002 ms</td><td></td></tr>
+<tr><td><span class="dot warn"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="num">3269</td><td>Global Catalog LDAPS</td><td>Timeout</td><td class="num">2002 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">53</td><td>DNS</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">88</td><td>Kerberos</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">135</td><td>RPC Endpoint Mapper</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">389</td><td>LDAP</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">445</td><td>SMB</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">464</td><td>Kerberos Password</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">636</td><td>LDAPS</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">3268</td><td>Global Catalog</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td class="num">3269</td><td>Global Catalog LDAPS</td><td>Open</td><td class="num">4 ms</td><td></td></tr>
+</tbody></table></section>
+<section><h2>Échecs de réplication en cours</h2>
+<table><thead><tr>
+<th></th><th>Destination</th><th>Source</th><th>Premier échec</th><th>Durée</th><th>Tentatives</th><th>Erreur</th><th>Ce que cela signifie</th>
+</tr></thead><tbody>
+<tr><td><span class="dot fail"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td>(injoignable)</td><td>15/10/2026 14:22</td><td>5 min</td><td class="num">0</td><td><strong>DC injoignable : ses échecs n'ont pas pu être consultés</strong><br><span class="muted mono">-1 · DC injoignable : ses échecs de réplication réels n'ont pas pu être consultés. Les échecs vus par les autres DC apparaîtront après leurs prochaines tentatives de réplication. Détail : Le contrôleur de domaine &quot;SRV-CD-02.lyceerondeau.bsg&quot; n'existe pas ou ne peut pas être contacté.</span></td><td>ADReplic n'a pas réussi à interroger ce contrôleur de domaine. Ce n'est pas un code d'erreur Active Directory mais un marqueur interne : la ligne signale que l'état réel de la réplication de ce DC est inconnu.</td></tr>
+</tbody></table>
+<h3>Comment corriger</h3>
+<details class="remediation"><summary>DC injoignable : ses échecs n'ont pas pu être consultés <span class="muted mono">(code -1)</span></summary>
+<p class="sub">Causes probables</p><ul>
+<li>DC éteint ou en cours de redémarrage</li><li>Pare-feu bloquant LDAP (389) ou RPC (135) depuis le poste d'audit</li><li>Nom DNS du DC non résolu depuis le poste d'audit</li></ul>
+<p class="sub">Que vérifier</p><ol>
+<li>Vérifier que le DC est allumé et répond au ping</li><li>Vérifier la résolution DNS de son nom depuis le poste d'audit</li><li>Vérifier les ports 135, 389 et 445 (onglet Ports d'ADReplic)</li><li>Relancer l'audit une fois le DC de nouveau joignable</li></ol>
+<p class="sub">Commandes</p><ul class="cmds">
+<li><code>nltest /server:&lt;dc&gt; /sc_query:&lt;domaine&gt;</code></li><li><code>Test-NetConnection &lt;dc&gt; -Port 389</code></li></ul>
+</details>
+</section>
+<section><h2>Matrice de réplication</h2>
+<table><thead><tr>
+<th></th><th>Destination</th><th>Source</th><th>Contexte de nommage</th><th>Type</th>
+<th>Dernier succès</th><th>Dernière tentative</th><th>Latence</th><th>Échecs</th><th>Message</th>
+</tr></thead><tbody>
+<tr><td><span class="dot fail"></span></td><td>SRV-CD-02.lyceerondeau.bsg</td><td>(inconnu)</td><td class="mono">(non interrogé)</td><td></td><td>—</td><td>—</td><td>—</td><td class="num">0</td><td>Le contrôleur de domaine &quot;SRV-CD-02.lyceerondeau.bsg&quot; n'existe pas ou ne peut pas être contacté.</td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="mono">CN=Configuration,DC=lyceerondeau,DC=bsg</td><td>Configuration</td><td>15/10/2026 13:54</td><td>15/10/2026 13:54</td><td>0s</td><td class="num">0</td><td>L’opération a réussi.
+</td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="mono">CN=Schema,CN=Configuration,DC=lyceerondeau,DC=bsg</td><td>Schéma</td><td>15/10/2026 13:54</td><td>15/10/2026 13:54</td><td>0s</td><td class="num">0</td><td>L’opération a réussi.
+</td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="mono">DC=DomainDnsZones,DC=lyceerondeau,DC=bsg</td><td>Application (DNS)</td><td>15/10/2026 13:54</td><td>15/10/2026 13:54</td><td>0s</td><td class="num">0</td><td>L’opération a réussi.
+</td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="mono">DC=ForestDnsZones,DC=lyceerondeau,DC=bsg</td><td>Application (DNS)</td><td>15/10/2026 13:54</td><td>15/10/2026 13:54</td><td>0s</td><td class="num">0</td><td>L’opération a réussi.
+</td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td>SRV-CD-02.lyceerondeau.bsg</td><td class="mono">DC=lyceerondeau,DC=bsg</td><td>Domaine</td><td>15/10/2026 13:54</td><td>15/10/2026 13:54</td><td>0s</td><td class="num">0</td><td>L’opération a réussi.
+</td></tr>
+</tbody></table></section>
+<section><h2>Sites Active Directory</h2>
+<table><thead><tr>
+<th>Site</th><th>Localisation</th><th>Contrôleurs</th><th>Sous-réseaux</th><th>Têtes de pont</th>
+</tr></thead><tbody>
+<tr><td>Maurice-Rondeau</td><td></td><td>SRV-CD-01.lyceerondeau.bsg, SRV-CD-02.lyceerondeau.bsg</td><td class="mono">172.17.0.0/16</td><td>—</td></tr>
+</tbody></table></section>
+<section><h2>Liens inter-sites</h2>
+<table><thead><tr>
+<th>Nom</th><th>Sites reliés</th><th>Coût</th><th>Intervalle</th><th>Transport</th><th>Notifications</th>
+</tr></thead><tbody>
+<tr><td>DEFAULTIPSITELINK</td><td>Maurice-Rondeau</td><td class="num">100</td><td>3h</td><td>Rpc</td><td></td></tr>
+</tbody></table></section>
+<section><h2>Contrôleurs de domaine</h2>
+<table><thead><tr>
+<th></th><th>Hôte</th><th>Domaine</th><th>Site</th><th>IP</th><th>OS</th><th>GC</th><th>Rôles FSMO</th>
+</tr></thead><tbody>
+<tr><td><span class="dot fail"></span></td><td>SRV-CD-02.lyceerondeau.bsg <em>(injoignable)</em></td><td>lyceerondeau.bsg</td><td></td><td class="mono">172.17.0.2</td><td></td><td></td><td></td></tr>
+<tr><td><span class="dot ok"></span></td><td>SRV-CD-01.lyceerondeau.bsg</td><td>lyceerondeau.bsg</td><td>Maurice-Rondeau</td><td class="mono">172.17.0.1</td><td>Windows Server 2025 Standard Evaluation</td><td>✓</td><td>SchemaMaster, NamingMaster, PDC, RID, Infrastructure</td></tr>
+</tbody></table></section>
+<footer>Généré par ADReplic.</footer>
+</body></html>
