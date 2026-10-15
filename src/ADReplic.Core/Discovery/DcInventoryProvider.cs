@@ -25,6 +25,17 @@ namespace ADReplic.Core.Discovery
     /// </remarks>
     public sealed class DcInventoryProvider : IDcInventoryProvider
     {
+        private readonly DcReachabilityChecker _reachability;
+
+        /// <param name="portProber">
+        /// Testeur TCP du pré-test de joignabilité (v0.8.0) ; null = TcpPortProber.
+        /// Injectable pour les tests, sans rien changer pour les cmdlets PowerShell.
+        /// </param>
+        public DcInventoryProvider(Health.Ports.IPortProber portProber = null)
+        {
+            _reachability = new DcReachabilityChecker(portProber ?? new Health.Ports.TcpPortProber());
+        }
+
         public Task<IReadOnlyList<DomainControllerInfo>> GetAllAsync(
             AuditContext context,
             CancellationToken cancellationToken)
@@ -50,7 +61,7 @@ namespace ADReplic.Core.Discovery
             return Task.Run(() => DiscoverSingle(dcHostName, context, cancellationToken), cancellationToken);
         }
 
-        private static IReadOnlyList<DomainControllerInfo> Discover(
+        private IReadOnlyList<DomainControllerInfo> Discover(
             AuditContext context,
             CancellationToken cancellationToken)
         {
@@ -76,7 +87,7 @@ namespace ADReplic.Core.Discovery
                     // ce qui est très rare.
                     try
                     {
-                        list.Add(BuildInfo(dc, domain, forest, fsmoRoles, domainFsmoRoles, discoveredAt));
+                        list.Add(BuildInfo(dc, domain, forest, fsmoRoles, domainFsmoRoles, discoveredAt, cancellationToken));
                     }
                     catch
                     {
@@ -88,7 +99,7 @@ namespace ADReplic.Core.Discovery
             return list;
         }
 
-        private static DomainControllerInfo DiscoverSingle(
+        private DomainControllerInfo DiscoverSingle(
             string dcHostName,
             AuditContext context,
             CancellationToken cancellationToken)
@@ -109,38 +120,51 @@ namespace ADReplic.Core.Discovery
             var domainFsmoRoles = CollectDomainFsmoRoles(domain);
 
             cancellationToken.ThrowIfCancellationRequested();
-            return BuildInfo(dc, domain, forest, forestFsmoRoles, domainFsmoRoles, DateTime.Now);
+            return BuildInfo(dc, domain, forest, forestFsmoRoles, domainFsmoRoles, DateTime.Now, cancellationToken);
         }
 
-        private static DomainControllerInfo BuildInfo(
+        private DomainControllerInfo BuildInfo(
             DomainController dc,
             Domain domain,
             Forest forest,
             IDictionary<string, string> forestFsmoRoles,
             IDictionary<string, string> domainFsmoRoles,
-            DateTime discoveredAt)
+            DateTime discoveredAt,
+            CancellationToken cancellationToken)
         {
             // dc.Name est typiquement déjà résolu côté client (chargé pendant
             // l'énumération parente), donc accessible même si le DC est down.
             // S'il plantait, l'appelant catch et passe au DC suivant.
             var hostName = dc.Name;
 
-            // Joignabilité : on compte les lectures de propriétés qui font un appel
-            // réseau vers CE DC. Le DC est déclaré injoignable seulement si TOUTES
-            // échouent : une seule lecture en échec (attribut absent, droit manquant)
-            // ne doit pas classer un DC sain en Critical.
-            var attemptedDcReads = 0;
-            var failedDcReads = 0;
-            T TryGetFromDc<T>(Func<T> getter)
-            {
-                attemptedDcReads++;
-                try { return getter(); }
-                catch { failedDcReads++; return default(T); }
-            }
+            // Pré-test TCP 389 (v0.8.0) : un DC éteint est tranché en 2 s, sans
+            // attendre trois timeouts LDAP successifs (2 à 3 minutes constatées).
+            var isReachable = _reachability.IsReachable(hostName, cancellationToken);
 
-            var siteName = TryGetFromDc(() => dc.SiteName);
-            var osVersion = TryGetFromDc(() => dc.OSVersion);
-            var isGlobalCatalog = TryGetFromDc(() => dc.IsGlobalCatalog());
+            string siteName = null;
+            string osVersion = null;
+            var isGlobalCatalog = false;
+
+            if (isReachable)
+            {
+                // Joignabilité confirmée a posteriori : on compte les lectures de
+                // propriétés qui font un appel réseau vers CE DC. Le DC est déclaré
+                // injoignable seulement si TOUTES échouent : une seule lecture en échec
+                // (attribut absent, droit manquant) ne doit pas classer un DC sain en Critical.
+                var attemptedDcReads = 0;
+                var failedDcReads = 0;
+                T TryGetFromDc<T>(Func<T> getter)
+                {
+                    attemptedDcReads++;
+                    try { return getter(); }
+                    catch { failedDcReads++; return default(T); }
+                }
+
+                siteName = TryGetFromDc(() => dc.SiteName);
+                osVersion = TryGetFromDc(() => dc.OSVersion);
+                isGlobalCatalog = TryGetFromDc(() => dc.IsGlobalCatalog());
+                isReachable = failedDcReads < attemptedDcReads;
+            }
 
             return new DomainControllerInfo
             {
@@ -152,7 +176,7 @@ namespace ADReplic.Core.Discovery
                 OSVersion = osVersion,
                 IsGlobalCatalog = isGlobalCatalog,
                 IsReadOnly = IsReadOnlyQuietly(dc),
-                IsReachable = failedDcReads < attemptedDcReads,
+                IsReachable = isReachable,
                 Roles = ResolveRoles(hostName, forestFsmoRoles, domainFsmoRoles),
                 DiscoveredAt = discoveredAt
             };

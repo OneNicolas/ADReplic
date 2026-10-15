@@ -755,11 +755,14 @@
                                           CanUserResizeColumns="True" CanUserSortColumns="True"
                                           CanUserReorderColumns="True"
                                           RowDetailsVisibilityMode="Collapsed"
-                                          EnableRowVirtualization="False">
+                                          EnableRowVirtualization="False"
+                                          ScrollViewer.CanContentScroll="False">
                                     <!-- DetailsVisibility est posé directement sur la ligne par le code-behind du
                                          bouton (OnDerivedToggleChanged) : le DataGrid transfère son RowDetailsVisibilityMode
                                          aux lignes et écrase toute valeur venue d'un style. Pas de virtualisation ici
-                                         (liste courte) pour qu'une ligne recyclée n'hérite pas de l'état d'une autre. -->
+                                         (liste courte) pour qu'une ligne recyclée n'hérite pas de l'état d'une autre.
+                                         CanContentScroll=False : défilement au pixel, sinon une ligne dépliée plus haute
+                                         que la zone visible ne peut pas défiler (le DataGrid défile par ligne entière). -->
                                     <DataGrid.Columns>
                                         <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" CanUserSort="False">
                                             <DataGridTemplateColumn.CellTemplate>

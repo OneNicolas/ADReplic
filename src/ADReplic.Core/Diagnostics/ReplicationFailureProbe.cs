@@ -78,6 +78,14 @@ namespace ADReplic.Core.Diagnostics
 
         private static void ProbeDcSync(DomainControllerInfo dcInfo, AuditContext context, ConcurrentBag<ReplicationFailureInfo> sink)
         {
+            // Déjà tranché par le pré-test TCP de la découverte (v0.8.0) : même ligne
+            // synthétique, sans attendre un nouveau timeout LDAP.
+            if (!dcInfo.IsReachable)
+            {
+                sink.Add(UnreachableFailure(dcInfo, "marqué injoignable à la découverte (aucune réponse sur le port LDAP 389)."));
+                return;
+            }
+
             DomainController dc = null;
             try
             {
@@ -98,25 +106,28 @@ namespace ADReplic.Core.Diagnostics
                 // FirstFailureTime = maintenant faute de mieux (la vraie durée de la
                 // panne n'est pas connaissable puisque le DC ne répond pas) ; le
                 // message explicite lève l'ambiguïté pour l'opérateur.
-                sink.Add(new ReplicationFailureInfo
-                {
-                    DestinationDc = dcInfo.HostName,
-                    SourceDc = "(injoignable)",
-                    FirstFailureTime = DateTime.Now,
-                    ConsecutiveFailureCount = 0,
-                    LastErrorCode = UnreachableErrorCode,
-                    LastErrorMessage =
-                        "DC injoignable : ses échecs de réplication réels n'ont pas pu être " +
-                        "consultés. Les échecs vus par les autres DC apparaîtront après leurs " +
-                        "prochaines tentatives de réplication. Détail : " + ex.Message,
-                    Severity = ReplicationFailureSeverity.Critical
-                });
+                sink.Add(UnreachableFailure(dcInfo, ex.Message));
             }
             finally
             {
                 dc?.Dispose();
             }
         }
+
+        private static ReplicationFailureInfo UnreachableFailure(DomainControllerInfo dcInfo, string detail)
+            => new ReplicationFailureInfo
+            {
+                DestinationDc = dcInfo.HostName,
+                SourceDc = "(injoignable)",
+                FirstFailureTime = DateTime.Now,
+                ConsecutiveFailureCount = 0,
+                LastErrorCode = UnreachableErrorCode,
+                LastErrorMessage =
+                    "DC injoignable : ses échecs de réplication réels n'ont pas pu être " +
+                    "consultés. Les échecs vus par les autres DC apparaîtront après leurs " +
+                    "prochaines tentatives de réplication. Détail : " + detail,
+                Severity = ReplicationFailureSeverity.Critical
+            };
 
         private static ReplicationFailureInfo BuildFailure(DomainControllerInfo destination, ReplicationFailure f)
         {

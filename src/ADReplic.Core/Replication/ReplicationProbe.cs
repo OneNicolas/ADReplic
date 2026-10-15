@@ -68,8 +68,20 @@ namespace ADReplic.Core.Replication
             }
         }
 
+        /// <summary>Message de la ligne synthétique d'un DC écarté dès la découverte (v0.8.0).</summary>
+        public const string MarkedUnreachableMessage =
+            "DC marqué injoignable à la découverte (aucune réponse sur le port LDAP 389) : non interrogé.";
+
         private static void ProbeDcSync(DomainControllerInfo dcInfo, AuditContext context, ConcurrentBag<ReplicationLink> sink)
         {
+            // Déjà tranché par le pré-test TCP de la découverte : inutile d'attendre
+            // un nouveau timeout LDAP pour obtenir la même ligne rouge.
+            if (!dcInfo.IsReachable)
+            {
+                sink.Add(UnreachableLink(dcInfo, MarkedUnreachableMessage));
+                return;
+            }
+
             DomainController dc = null;
             try
             {
@@ -88,20 +100,23 @@ namespace ADReplic.Core.Replication
             {
                 // Le DC est injoignable : on émet quand même une ligne pour qu'il apparaisse
                 // en rouge dans la matrice plutôt que d'être silencieusement absent.
-                sink.Add(new ReplicationLink
-                {
-                    DestinationDc = dcInfo.HostName,
-                    SourceDc = "(inconnu)",
-                    NamingContext = "(non interrogé)",
-                    LastResultMessage = ex.Message,
-                    Status = ReplicationLinkStatus.Unreachable
-                });
+                sink.Add(UnreachableLink(dcInfo, ex.Message));
             }
             finally
             {
                 dc?.Dispose();
             }
         }
+
+        private static ReplicationLink UnreachableLink(DomainControllerInfo dcInfo, string message)
+            => new ReplicationLink
+            {
+                DestinationDc = dcInfo.HostName,
+                SourceDc = "(inconnu)",
+                NamingContext = "(non interrogé)",
+                LastResultMessage = message,
+                Status = ReplicationLinkStatus.Unreachable
+            };
 
         private static ReplicationLink BuildLink(DomainControllerInfo destination, ReplicationNeighbor n)
         {
