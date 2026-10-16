@@ -468,14 +468,11 @@ namespace ADReplic.App.ViewModels
 
         // === Identifiants mémorisés (v0.9.0) ================================
 
-        /// <summary>Vrai si le coffre Windows a une entrée pour la forêt cible courante.</summary>
-        public bool HasSavedCredentials
+        /// <summary>Vrai si le coffre Windows a une entrée pour cette forêt (null = forêt du poste).</summary>
+        public bool HasSavedCredentialsFor(string forestName)
         {
-            get
-            {
-                try { return _credentialStore.TryRead(CredentialTargets.ForForest(_targetForestName), out _); }
-                catch { return false; }
-            }
+            try { return _credentialStore.TryRead(CredentialTargets.ForForest(forestName), out _); }
+            catch { return false; }
         }
 
         /// <summary>

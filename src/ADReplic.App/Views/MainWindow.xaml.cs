@@ -132,10 +132,11 @@ namespace ADReplic.App.Views
 
         private void ShowCredentialsDialog(MainViewModel vm)
         {
-            var forestLabel = string.IsNullOrWhiteSpace(vm.TargetForestName) ? "la forêt courante" : vm.TargetForestName.Trim();
-            var dialog = new CredentialsDialog(vm.CredentialUserName, vm.HasSavedCredentials, forestLabel) { Owner = this };
+            var dialog = new CredentialsDialog(vm.TargetForestName, vm.CredentialUserName, vm.HasSavedCredentialsFor) { Owner = this };
             if (dialog.ShowDialog() != true) return;
 
+            // La forêt saisie dans le dialogue devient la cible : elle nomme l'entrée du coffre.
+            vm.TargetForestName = dialog.ForestName;
             if (dialog.Forget)
                 vm.ForgetSavedCredentials();
             else
