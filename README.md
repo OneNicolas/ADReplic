@@ -1,8 +1,8 @@
 # ADReplic — Audit de réplication Active Directory
 
-> **Version 0.6.0** — outil portable de diagnostic AD
+> **Version 0.8.0** — outil portable de diagnostic AD
 >
-> Remplaçant moderne de **Active Directory Replication Status Tool (ARST)** de Microsoft, non maintenu depuis 2014. Application WPF (.NET Framework 4.8) qui audite la santé d'une forêt Active Directory (réplication, DNS, réseau), sans dépendance externe ni installation, dans un exécutable d'environ 200 Ko.
+> Remplaçant moderne de **Active Directory Replication Status Tool (ARST)** de Microsoft, non maintenu depuis 2014. Application WPF (.NET Framework 4.8) qui audite la santé d'une forêt Active Directory (réplication, DNS, réseau, horloges), sans dépendance externe ni installation, dans un exécutable d'environ 200 Ko.
 
 ## Fonctionnalités
 
@@ -16,7 +16,7 @@
 - **Santé réseau** — tests de connectivité TCP sur 9 ports AD (53, 88, 135, 389, 445, 464, 636, 3268, 3269), distinction Closed / Timeout pour faciliter le diagnostic firewall vs service down
 - **Score de santé tripartite** — note 0/100 pondérée Réplication 50 % / DNS 25 % / Réseau 25 %, avec niveaux Excellent / Warning / Critical et renormalisation automatique des poids si une sonde est absente
 
-### Diagnostics (15 détecteurs)
+### Diagnostics (16 détecteurs)
 ADReplic identifie automatiquement les anomalies de configuration et de structure, avec une recommandation de correction pour chacune :
 
 | Code | Sévérité | Détecte |
@@ -38,6 +38,7 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 | `DNS_SRV_POINTS_TO_DEAD_DC` | Warning | Enregistrement SRV pointant vers un hôte dont tous les ports AD critiques sont inaccessibles (SRV orphelin après retrait brutal d'un DC) |
 | `PORT_CRITICAL_CLOSED` | Critical | Port AD critique (389/88/445) fermé ou en timeout |
 | `PORT_CLOSED_OR_FILTERED` | Warning | Port AD secondaire fermé ou en timeout |
+| `DC_CLOCK_SKEW` | Critical | Horloge d'un DC décalée de plus de 5 min par rapport au maître PDC (ou à la médiane des DC si le PDC n'est pas mesuré) — au-delà, Kerberos rejette les tickets |
 
 ### Suivi dans le temps (v0.5.0)
 - **Comparaison de deux audits** — sélection de deux exports JSON, calcul du delta par catégorie (DCs, liens, échecs, sites, anomalies, DNS, ports) et extraction des **changements significatifs** (transition descendante de palier, nouveau Critical, DC perdu, nouveau failure, SRV ou port critique perdu) ; onglet GUI dédié conditionnel (visible uniquement après comparaison)
@@ -63,6 +64,15 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 - **Exports enrichis** — colonnes `Impact` / `Recommendation` / `DocumentationUrl` (anomalies) et `ErrorTitle` (échecs) dans les CSV, blocs « Comment corriger » repliables dans le HTML ; JSON inchangé pour les champs calculés
 - **`Get-ADRErrorExplanation`** — le catalogue en PowerShell, hors ligne : `-Code 1722`, le catalogue complet, ou en pipeline depuis `Get-ADRReplicationFailure`
 - **Exécutable unique** — `ADReplic.exe` à la racine du pack, `Core.dll` fusionnée au build Release (ILRepack) ; plus de `Lancer-GUI.cmd`
+
+### DC injoignable sans bruit, audits rapides et rejouables (v0.8.0)
+- **Anomalies regroupées** — un DC éteint produit une dizaine d'anomalies dérivées (ports, SRV orphelins) ; elles sont repliées sous son `DC_UNREACHABLE` dans la GUI (« ▸ 10 anomalies liées à l'indisponibilité de … », dépliable, chaque conséquence consultable) et dans le rapport HTML. La liste plate reste intacte dans les CSV, le JSON, `Get-ADRIssue` et la comparaison d'audits
+- **Découverte rapide** — un DC qui ne répond pas sur le port LDAP (test TCP de 2 s) n'est plus interrogé par les lectures AD ni par les sondes réplication/échecs : avec un DC éteint, l'audit passe de 2–3 minutes à quelques secondes, sans rien retirer de l'analyse des DC joignables
+- **Résilient au DC éteint, PDC compris** — la topologie se lit sur un DC joignable connu plutôt que sur celui que choisit le localisateur Windows
+- **Bandeau neutre après un audit en erreur** — plus de « ✓ Aucun échec » quand rien n'a été collecté : phrase grise explicite et grilles « Aucune donnée », variante « données partielles » si la découverte avait abouti ; la phrase de synthèse compte aussi les liens de réplication en échec ou en avertissement
+- **Ouvrir un audit JSON** — menu Fichier (Ctrl+O) : relecture d'un audit archivé dans tous les onglets, détecteurs et score recalculés avec la version courante (un audit v0.7 bénéficie du regroupement v0.8), date et auteur d'origine conservés ; un fichier qui n'est pas un audit ADReplic est refusé
+- **Dérive d'horloge entre DC** — sonde `currentTime` du RootDSE LDAP (port 389, lecture anonyme, aucune dépendance) et détecteur `DC_CLOCK_SKEW` ; le décalage du poste d'audit s'annule puisque les DC sont comparés entre eux
+- **Panneaux de détail** — bouton ✕ pour les refermer, poignée de redimensionnement fiable
 
 ### Interface et workflow
 - **Forêt cible** — interroger une forêt distante depuis un poste hors-domaine
@@ -95,7 +105,7 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 | DNS | P/Invoke `DnsQuery_W` (dnsapi.dll), zéro dépendance NuGet |
 | Réseau | `System.Net.Sockets.TcpClient` natif, parallélisme `SemaphoreSlim` |
 | PowerShell | Module binaire .NET Framework 4.8 + module script imbriqué |
-| Tests | xUnit (**374 tests verts**) |
+| Tests | xUnit (**473 tests verts**) |
 | Build | SDK-style csproj, single-file publish |
 
 ## Architecture
@@ -107,10 +117,11 @@ src/
 │   ├── Ad/                       — DirectoryContextFactory (création contexte AD)
 │   ├── Comparison/               — AuditDiffer + SignificantChangeDetector (v0.5.0)
 │   ├── Diagnostics/              — Score tripartite, classifier d'erreurs, sévérité, Win32 messages FR
-│   │   └── Issues/               — 15 détecteurs d'anomalies + IssueAggregator
-│   ├── Discovery/                — DcInventoryProvider (GetAllAsync + GetSingleAsync), résilient aux DC injoignables
-│   ├── Export/                   — CSV, JSON, HTML exporters + JsonAuditReader + AuditSnapshotBuilder
-│   ├── Health/                   — Sondes DNS et réseau
+│   │   └── Issues/               — 16 détecteurs d'anomalies + IssueAggregator + IssueGrouper (regroupement) + IssueKnowledgeBase
+│   ├── Discovery/                — DcInventoryProvider (GetAllAsync + GetSingleAsync) + DcReachabilityChecker (pré-test TCP 389)
+│   ├── Export/                   — CSV, JSON, HTML exporters + JsonAuditReader + AuditSnapshotBuilder (Build + Rebuild)
+│   ├── Health/                   — Sondes DNS, réseau et horloges
+│   │   ├── Clock/                — LdapRootDseClockReader, ClockHealthProbe (v0.8.0)
 │   │   ├── Dns/                  — Win32DnsResolver (P/Invoke), DnsHealthProbe, DnsSrvNames
 │   │   └── Ports/                — TcpPortProber, PortHealthProbe, AdServicePorts
 │   ├── Models/                   — DTO (DomainControllerInfo, ReplicationLink, HealthScore, DetectedIssue, DnsCheckResult, PortCheckResult, ...)
@@ -128,7 +139,7 @@ src/
 ├── ADReplic.PowerShell/          — Cmdlets binaires + script imbriqué (planification)
 │   ├── ADReplic.psd1             — Manifeste module
 │   ├── ADReplic.Scheduling.psm1  — Register-ADRScheduledAudit (NestedModules)
-│   ├── Cmdlets/                  — 9 cmdlets (DcInventory, ReplicationStatus, Failure, Topology, Issue, DnsHealth, PortHealth, Export, Compare)
+│   ├── Cmdlets/                  — 10 cmdlets (DcInventory, ReplicationStatus, Failure, Topology, Issue, DnsHealth, PortHealth, Export, Compare, ErrorExplanation)
 │   └── Internal/                 — AuditContextBuilder
 │
 └── ADForestAudit/                — Module legacy refactoré (PowerShell pur)
@@ -137,7 +148,7 @@ src/
     └── Scripts/Invoke-ADForestAudit.ps1
 
 tests/
-└── ADReplic.Core.Tests/          — xUnit, 374 tests
+└── ADReplic.Core.Tests/          — xUnit, 473 tests
 
 build/
 ├── publish.ps1                   — Produit le pack portable dans dist/
@@ -267,13 +278,14 @@ Aucune donnée sensible n'est persistée — les identifiants saisis dans le dia
 
 ## Testé sur
 
-- Forêt AD multi-DC sous Windows Server 2022 (3 DC, 30 liens de réplication inter-sites)
+- Forêt AD multi-DC sous Windows Server 2025 (scénarios DC éteint, PDC éteint, redémarrages, horloge décalée) ; historiquement Windows Server 2022 (3 DC, 30 liens de réplication inter-sites)
 - Postes Windows 10 et Windows 11 (en domaine et hors-domaine avec UPN)
 
 ## Historique des versions
 
 | Version | Date | Apports majeurs |
 |---|---|---|
+| **0.8.0** | octobre 2026 | « DC injoignable sans bruit, audits rapides et rejouables » : anomalies dérivées d'un DC injoignable repliées sous son `DC_UNREACHABLE` (GUI dépliable + HTML, liste plate inchangée pour CSV/JSON/PowerShell/comparaison), découverte rapide (pré-test TCP 389, un DC éteint coûte 2 s au lieu de 2–3 min, sondes court-circuitées), topologie lue sur un DC joignable (PDC éteint géré), bandeau neutre après un audit en erreur, « Ouvrir un audit JSON » (Ctrl+O, conclusions recalculées), 16e détecteur `DC_CLOCK_SKEW` (sonde `currentTime` LDAP, seuil 5 min vs maître PDC), phrase de synthèse qui suit la matrice de réplication, bouton ✕ et poignée fiable sur les panneaux de détail |
 | **0.7.1** | octobre 2026 | Pack signé numériquement (Azure Artifact Signing, certificat Public Trust SCOPI, horodatage RFC 3161) : exe, DLL, scripts et manifestes PowerShell. Plus d'avertissement SmartScreen « éditeur inconnu », module compatible `RemoteSigned`. `publish.ps1 -SkipSign` pour les builds de dev |
 | **0.7.0** | octobre 2026 | « Lisibilité pour les non-experts » : catalogue de 22 codes d'erreur de réplication en français clair (causes, vérifications, commandes, lien Microsoft Learn), base de connaissance Impact / Que faire pour les 15 détecteurs, phrase de synthèse en une ligne (GUI + HTML), panneau de détail sous Échecs actifs et Diagnostics, bouton « Copier le diagnostic » (texte + HTML dans le presse-papiers), durées humaines, exports CSV/HTML enrichis, cmdlet `Get-ADRErrorExplanation`, exécutable unique à la racine du pack (ILRepack) |
 | **0.6.0** | juillet 2026 | « DC injoignable de bout en bout » : flag `IsReachable` + détecteur `DC_UNREACHABLE` (Critical) + détection croisée `DNS_SRV_POINTS_TO_DEAD_DC` (15 détecteurs), pastille de joignabilité GUI/HTML, bandeaux d'état vide, cmdlet `Compare-ADRAudit` (`-SignificantOnly` pour l'automatisation), paramètre `-DcName` sur 4 cmdlets, garde-fou Credential à deux couches, script de test du module embarqué dans le pack |
@@ -293,6 +305,8 @@ Voir le backlog priorisé interne. Prochaines features prévues :
 - **Rotation automatique des rapports planifiés** — paramètre `-MaxKeptReports` sur `Register-ADRScheduledAudit`
 - **Améliorations vs dégradations** — distinguer visuellement les deux sens dans le récap de comparaison
 - **Détecteur `REPLICATION_LINK_FAILING`** — remonter dans Diagnostics les liens de réplication en échec persistant
+- **Horloges visibles** — colonne « Décalage » dans l'onglet Contrôleurs et section dédiée dans le rapport HTML (les mesures sont déjà dans le JSON)
+- **Mode simplifié / expert**, fiche d'incident HTML courte, score expliqué au survol du badge
 
 ## Licence
 
