@@ -20,8 +20,17 @@ namespace ADReplic.Core.Models
         /// <summary>Phrase explicative concise (ex : "2 liens en échec, 1 avertissement").</summary>
         public string Summary { get; set; }
 
-        /// <summary>Liste détaillée des anomalies détectées, toutes catégories confondues.</summary>
+        /// <summary>Liste détaillée des anomalies détectées, toutes catégories confondues (concaténation des trois listes ci-dessous).</summary>
         public IReadOnlyList<string> Anomalies { get; set; } = new List<string>();
+
+        /// <summary>Anomalies ayant pesé sur le sous-score Réplication (v0.9.0, score expliqué).</summary>
+        public IReadOnlyList<string> ReplicationAnomalies { get; set; } = new List<string>();
+
+        /// <summary>Anomalies ayant pesé sur le sous-score DNS (vide si la sonde n'a pas tourné).</summary>
+        public IReadOnlyList<string> DnsAnomalies { get; set; } = new List<string>();
+
+        /// <summary>Anomalies ayant pesé sur le sous-score Réseau (vide si la sonde n'a pas tourné).</summary>
+        public IReadOnlyList<string> PortAnomalies { get; set; } = new List<string>();
 
         /// <summary>Sous-score 0-100 de la catégorie Réplication. Toujours calculé.</summary>
         public int ReplicationScore { get; set; }

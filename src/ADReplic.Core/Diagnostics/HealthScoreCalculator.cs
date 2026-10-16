@@ -17,10 +17,10 @@ namespace ADReplic.Core.Diagnostics
     /// </summary>
     public static class HealthScoreCalculator
     {
-        // Pondérations cibles du score global.
-        private const double WeightReplication = 0.5;
-        private const double WeightDns = 0.25;
-        private const double WeightPorts = 0.25;
+        // Pondérations cibles du score global (publiques : HealthScoreExplainer les rejoue).
+        public const double WeightReplication = 0.5;
+        public const double WeightDns = 0.25;
+        public const double WeightPorts = 0.25;
 
         // Pénalités catégorie Réplication (inchangées par rapport à la v0.3.0).
         private const int FailingLinkPenalty = 25;
@@ -46,16 +46,21 @@ namespace ADReplic.Core.Diagnostics
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
 
-            var anomalies = new List<string>();
+            // Une liste par catégorie pour le score expliqué (v0.9.0) ; la liste plate
+            // historique reste la concaténation, dans le même ordre qu'avant.
+            var replicationAnomalies = new List<string>();
+            var dnsAnomalies = new List<string>();
+            var portAnomalies = new List<string>();
 
-            int replicationScore = ComputeReplicationScore(snapshot, anomalies);
+            int replicationScore = ComputeReplicationScore(snapshot, replicationAnomalies);
             int? dnsScore = snapshot.DnsHealth != null
-                ? ComputeDnsScore(snapshot.DnsHealth, anomalies)
+                ? ComputeDnsScore(snapshot.DnsHealth, dnsAnomalies)
                 : (int?)null;
             int? portScore = snapshot.PortHealth != null
-                ? ComputePortScore(snapshot.PortHealth, anomalies)
+                ? ComputePortScore(snapshot.PortHealth, portAnomalies)
                 : (int?)null;
 
+            var anomalies = replicationAnomalies.Concat(dnsAnomalies).Concat(portAnomalies).ToList();
             int globalScore = ComputeWeightedGlobal(replicationScore, dnsScore, portScore);
             var level = ClassifyLevel(globalScore);
 
@@ -66,6 +71,9 @@ namespace ADReplic.Core.Diagnostics
                 Label = LabelFor(level),
                 Summary = BuildSummary(anomalies),
                 Anomalies = anomalies,
+                ReplicationAnomalies = replicationAnomalies,
+                DnsAnomalies = dnsAnomalies,
+                PortAnomalies = portAnomalies,
                 ReplicationScore = replicationScore,
                 DnsScore = dnsScore,
                 PortScore = portScore
