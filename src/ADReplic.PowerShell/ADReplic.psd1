@@ -1,6 +1,6 @@
 @{
     RootModule        = 'ADReplic.PowerShell.dll'
-    ModuleVersion     = '0.8.0'
+    ModuleVersion     = '0.9.0'
     GUID              = '8c4b3f12-1d6a-4e9f-b2a7-3f4d5e6c7a8b'
     Author            = 'Nicolas Haultcoeur'
     CompanyName       = 'Scopi'

@@ -1,6 +1,6 @@
 # ADReplic — Audit de réplication Active Directory
 
-> **Version 0.8.0** — outil portable de diagnostic AD
+> **Version 0.9.0** — outil portable de diagnostic AD
 >
 > Remplaçant moderne de **Active Directory Replication Status Tool (ARST)** de Microsoft, non maintenu depuis 2014. Application WPF (.NET Framework 4.8) qui audite la santé d'une forêt Active Directory (réplication, DNS, réseau, horloges), sans dépendance externe ni installation, dans un exécutable d'environ 200 Ko.
 
@@ -16,7 +16,7 @@
 - **Santé réseau** — tests de connectivité TCP sur 9 ports AD (53, 88, 135, 389, 445, 464, 636, 3268, 3269), distinction Closed / Timeout pour faciliter le diagnostic firewall vs service down
 - **Score de santé tripartite** — note 0/100 pondérée Réplication 50 % / DNS 25 % / Réseau 25 %, avec niveaux Excellent / Warning / Critical et renormalisation automatique des poids si une sonde est absente
 
-### Diagnostics (16 détecteurs)
+### Diagnostics (17 détecteurs)
 ADReplic identifie automatiquement les anomalies de configuration et de structure, avec une recommandation de correction pour chacune :
 
 | Code | Sévérité | Détecte |
@@ -39,6 +39,7 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 | `PORT_CRITICAL_CLOSED` | Critical | Port AD critique (389/88/445) fermé ou en timeout |
 | `PORT_CLOSED_OR_FILTERED` | Warning | Port AD secondaire fermé ou en timeout |
 | `DC_CLOCK_SKEW` | Critical | Horloge d'un DC décalée de plus de 5 min par rapport au maître PDC (ou à la médiane des DC si le PDC n'est pas mesuré) — au-delà, Kerberos rejette les tickets |
+| `REPLICATION_LINK_FAILING` | Critical | Lien de réplication en échec persistant (≥ 3 tentatives consécutives ou plus de 3 h sans succès) entre deux DC joignables, une anomalie par couple destination ← source avec partitions et dernière erreur ; les liens d'un DC injoignable restent couverts par `DC_UNREACHABLE` |
 
 ### Suivi dans le temps (v0.5.0)
 - **Comparaison de deux audits** — sélection de deux exports JSON, calcul du delta par catégorie (DCs, liens, échecs, sites, anomalies, DNS, ports) et extraction des **changements significatifs** (transition descendante de palier, nouveau Critical, DC perdu, nouveau failure, SRV ou port critique perdu) ; onglet GUI dédié conditionnel (visible uniquement après comparaison)
@@ -74,12 +75,20 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 - **Dérive d'horloge entre DC** — sonde `currentTime` du RootDSE LDAP (port 389, lecture anonyme, aucune dépendance) et détecteur `DC_CLOCK_SKEW` ; le décalage du poste d'audit s'annule puisque les DC sont comparés entre eux
 - **Panneaux de détail** — bouton ✕ pour les refermer, poignée de redimensionnement fiable
 
+### Voir plus loin (v0.9.0)
+- **Liens de réplication en échec dans Diagnostics** — 17e détecteur `REPLICATION_LINK_FAILING` : un lien en échec persistant entre deux DC joignables devient une anomalie Critical explicite (partitions, tentatives, dernière erreur, quoi faire), sans doublon avec un DC injoignable
+- **Horloges visibles** — colonne « Décalage » dans l'onglet Contrôleurs (« réf. » sur le maître PDC, « +0,4 s », orange au-delà d'une minute, rouge au-delà de cinq) et section « Horloges » dans le rapport HTML, calculées par rapport à la même référence que le détecteur
+- **Score expliqué** — au survol du badge : points perdus par catégorie (Réplication / DNS / Réseau) avec les poids effectifs et les anomalies qui pèsent
+- **Onglet Topologie** — sites en cartes (DC avec pastille de joignabilité), liens inter-sites en arêtes colorées selon leur coût relatif (vert / orange / rouge, épaisseur inverse au coût), étiquettes de coût, tooltips, zoom à la molette ou aux boutons, ajustement automatique ; `samples\topologie-demo.json` pour l'essayer sur une forêt à 4 sites
+- **Identifiants mémorisés sur le poste** — case « Mémoriser sur ce poste pour <forêt> » dans le dialogue Identifiants : stockage dans le Gestionnaire d'identifiants Windows (chiffré DPAPI pour la session, visible et supprimable dans le Panneau de configuration), forêt cible saisie dans le dialogue ou déduite du suffixe UPN, rechargement automatique au lancement, bouton « Oublier » ; rien dans les exports ni les snapshots
+- **Script de test PowerShell** — groupe 8 (sonde d'horloge dans l'export JSON)
+
 ### Interface et workflow
 - **Forêt cible** — interroger une forêt distante depuis un poste hors-domaine
 - **Identifiants alternatifs** — authentification UPN ou DOMAINE\compte
 - **Thème clair / sombre** — bascule en un clic, préférence persistée dans `%APPDATA%`
 - **Exports** — CSV (8 fichiers), JSON (snapshot complet) et HTML autonome avec CSS inline
-- **9 onglets** — Contrôleurs, Échecs actifs, Réplication, Sites, Liens inter-sites, Diagnostics, Santé DNS, Santé réseau, et Comparaison (conditionnel, visible uniquement après calcul d'un diff)
+- **10 onglets** — Contrôleurs, Échecs actifs, Réplication, Sites, Liens inter-sites, Topologie, Diagnostics, Santé DNS, Santé réseau, et Comparaison (conditionnel, visible uniquement après calcul d'un diff)
 - **Menu contextuel** — clic droit sur un DC pour l'auditer en mode ciblé
 
 ### Automatisation
@@ -105,7 +114,7 @@ ADReplic identifie automatiquement les anomalies de configuration et de structur
 | DNS | P/Invoke `DnsQuery_W` (dnsapi.dll), zéro dépendance NuGet |
 | Réseau | `System.Net.Sockets.TcpClient` natif, parallélisme `SemaphoreSlim` |
 | PowerShell | Module binaire .NET Framework 4.8 + module script imbriqué |
-| Tests | xUnit (**473 tests verts**) |
+| Tests | xUnit (**541 tests verts**) |
 | Build | SDK-style csproj, single-file publish |
 
 ## Architecture
@@ -116,18 +125,19 @@ src/
 │   ├── Abstractions/             — Interfaces (IDcInventoryProvider, IReplicationProbe, IDnsHealthProbe, IPortHealthProbe, IJsonAuditReader, ISnapshotStore, ...)
 │   ├── Ad/                       — DirectoryContextFactory (création contexte AD)
 │   ├── Comparison/               — AuditDiffer + SignificantChangeDetector (v0.5.0)
-│   ├── Diagnostics/              — Score tripartite, classifier d'erreurs, sévérité, Win32 messages FR
-│   │   └── Issues/               — 16 détecteurs d'anomalies + IssueAggregator + IssueGrouper (regroupement) + IssueKnowledgeBase
+│   ├── Diagnostics/              — Score tripartite + HealthScoreExplainer (points perdus par catégorie), classifier d'erreurs, sévérité, Win32 messages FR
+│   │   └── Issues/               — 17 détecteurs d'anomalies + IssueAggregator + IssueGrouper (regroupement) + IssueKnowledgeBase + HostNameNormalizer
 │   ├── Discovery/                — DcInventoryProvider (GetAllAsync + GetSingleAsync) + DcReachabilityChecker (pré-test TCP 389)
 │   ├── Export/                   — CSV, JSON, HTML exporters + JsonAuditReader + AuditSnapshotBuilder (Build + Rebuild)
 │   ├── Health/                   — Sondes DNS, réseau et horloges
-│   │   ├── Clock/                — LdapRootDseClockReader, ClockHealthProbe (v0.8.0)
+│   │   ├── Clock/                — LdapRootDseClockReader, ClockHealthProbe (v0.8.0), ClockOffsetTable + ClockOffsetFormatter (v0.9.0)
 │   │   ├── Dns/                  — Win32DnsResolver (P/Invoke), DnsHealthProbe, DnsSrvNames
 │   │   └── Ports/                — TcpPortProber, PortHealthProbe, AdServicePorts
 │   ├── Models/                   — DTO (DomainControllerInfo, ReplicationLink, HealthScore, DetectedIssue, DnsCheckResult, PortCheckResult, ...)
 │   ├── Monitoring/               — AuditHistory (ring buffer), SnapshotStore (rotation), MonitoringSettings (v0.5.0)
 │   ├── Replication/              — ReplicationProbe, status evaluator, partition classifier
-│   └── Topology/                 — TopologyProvider (sites, subnets, site links)
+│   ├── Security/                 — ICredentialStore, WindowsCredentialStore (Gestionnaire d'identifiants Windows, P/Invoke advapi32), CredentialTargets (v0.9.0)
+│   └── Topology/                 — TopologyProvider (sites, subnets, site links), TopologyLayout (graphe positionné pour l'onglet Topologie, v0.9.0)
 │
 ├── ADReplic.App/                 — WPF MVVM (UI uniquement)
 │   ├── Mvvm/                     — RelayCommand, AsyncRelayCommand, ViewModelBase
@@ -147,8 +157,11 @@ src/
     ├── ADForestAudit.psm1        — Surcouche sur ADReplic.PowerShell, ajoute alias EN
     └── Scripts/Invoke-ADForestAudit.ps1
 
+samples/
+└── topologie-demo.json           — Audit anonymisé à 4 sites / 3 liens pour essayer l'onglet Topologie (Fichier › Ouvrir un audit JSON)
+
 tests/
-└── ADReplic.Core.Tests/          — xUnit, 473 tests
+└── ADReplic.Core.Tests/          — xUnit, 541 tests
 
 build/
 ├── publish.ps1                   — Produit le pack portable dans dist/
@@ -285,6 +298,7 @@ Aucune donnée sensible n'est persistée — les identifiants saisis dans le dia
 
 | Version | Date | Apports majeurs |
 |---|---|---|
+| **0.9.0** | octobre 2026 | « Voir plus loin » : 17e détecteur `REPLICATION_LINK_FAILING` (liens en échec persistant entre DC joignables, une anomalie par couple), horloges visibles (colonne « Décalage » + section HTML, référence commune avec `DC_CLOCK_SKEW`), score expliqué au survol du badge (points perdus par catégorie, poids effectifs), onglet Topologie (sites, DC, liens inter-sites colorés par coût relatif, zoom), identifiants mémorisés dans le Gestionnaire d'identifiants Windows (forêt cible dans le dialogue, déduite du suffixe UPN), groupe 8 du script de test PowerShell, pastilles de joignabilité rétablies dans Contrôleurs |
 | **0.8.0** | octobre 2026 | « DC injoignable sans bruit, audits rapides et rejouables » : anomalies dérivées d'un DC injoignable repliées sous son `DC_UNREACHABLE` (GUI dépliable + HTML, liste plate inchangée pour CSV/JSON/PowerShell/comparaison), découverte rapide (pré-test TCP 389, un DC éteint coûte 2 s au lieu de 2–3 min, sondes court-circuitées), topologie lue sur un DC joignable (PDC éteint géré), bandeau neutre après un audit en erreur, « Ouvrir un audit JSON » (Ctrl+O, conclusions recalculées), 16e détecteur `DC_CLOCK_SKEW` (sonde `currentTime` LDAP, seuil 5 min vs maître PDC), phrase de synthèse qui suit la matrice de réplication, bouton ✕ et poignée fiable sur les panneaux de détail |
 | **0.7.1** | octobre 2026 | Pack signé numériquement (Azure Artifact Signing, certificat Public Trust SCOPI, horodatage RFC 3161) : exe, DLL, scripts et manifestes PowerShell. Plus d'avertissement SmartScreen « éditeur inconnu », module compatible `RemoteSigned`. `publish.ps1 -SkipSign` pour les builds de dev |
 | **0.7.0** | octobre 2026 | « Lisibilité pour les non-experts » : catalogue de 22 codes d'erreur de réplication en français clair (causes, vérifications, commandes, lien Microsoft Learn), base de connaissance Impact / Que faire pour les 15 détecteurs, phrase de synthèse en une ligne (GUI + HTML), panneau de détail sous Échecs actifs et Diagnostics, bouton « Copier le diagnostic » (texte + HTML dans le presse-papiers), durées humaines, exports CSV/HTML enrichis, cmdlet `Get-ADRErrorExplanation`, exécutable unique à la racine du pack (ILRepack) |
@@ -301,12 +315,12 @@ Détail de chaque version dans les [GitHub Releases](https://github.com/OneNicol
 
 Voir le backlog priorisé interne. Prochaines features prévues :
 
-- **Vue topologie SVG** — visualisation graphique inter-sites
+- **Inventaire des serveurs liés** — serveurs membres, DHCP autorisés, serveurs DNS (et éventuellement Exchange / AD FS / Entra Connect) rattachés à leur site, en LDAP pur
+- **Topologie dans le rapport HTML** — section SVG reprenant le graphe de l'onglet Topologie
+- **Identifiants mémorisés côté PowerShell** — `Get-ADRSavedCredential` pour réutiliser l'entrée du Gestionnaire d'identifiants
 - **Rotation automatique des rapports planifiés** — paramètre `-MaxKeptReports` sur `Register-ADRScheduledAudit`
 - **Améliorations vs dégradations** — distinguer visuellement les deux sens dans le récap de comparaison
-- **Détecteur `REPLICATION_LINK_FAILING`** — remonter dans Diagnostics les liens de réplication en échec persistant
-- **Horloges visibles** — colonne « Décalage » dans l'onglet Contrôleurs et section dédiée dans le rapport HTML (les mesures sont déjà dans le JSON)
-- **Mode simplifié / expert**, fiche d'incident HTML courte, score expliqué au survol du badge
+- **Mode simplifié / expert**, fiche d'incident HTML courte, nouveaux détecteurs sans RSAT
 
 ## Licence
 
