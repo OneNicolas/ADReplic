@@ -59,6 +59,7 @@ namespace ADReplic.App.ViewModels
 
         // === Lisibilité (v0.7.0) ============================================
         private string _auditSummary;
+        private ClockOffsetTable _clockOffsets = ClockOffsetTable.Empty;
         private ReplicationFailureInfo _selectedFailure;
         private DetectedIssue _selectedIssue;
         private IssueRowViewModel _selectedIssueRow;
@@ -312,6 +313,17 @@ namespace ADReplic.App.ViewModels
         public bool HasAuditSummary => !string.IsNullOrEmpty(_auditSummary);
 
         /// <summary>
+        /// Décalages d'horloge par DC rapportés à la référence (v0.9.0), consultés par la
+        /// colonne « Décalage » de l'onglet Contrôleurs. Table vide tant qu'aucun audit
+        /// avec sonde d'horloge n'a abouti.
+        /// </summary>
+        public ClockOffsetTable ClockOffsets
+        {
+            get => _clockOffsets;
+            private set => SetProperty(ref _clockOffsets, value);
+        }
+
+        /// <summary>
         /// Vrai seulement quand le dernier audit a abouti (v0.8.0). Les bandeaux verts
         /// « ✓ Aucun échec / Aucune anomalie » n'ont de sens que dans ce cas : avant le
         /// premier audit ou après une erreur, une grille vide n'est pas une bonne nouvelle.
@@ -540,6 +552,7 @@ namespace ADReplic.App.ViewModels
             _lastDnsHealth = null;
             _lastPortHealth = null;
             _lastClockHealth = null;
+            ClockOffsets = ClockOffsetTable.Empty;
             _lastAuditWasSingleDc = false;
             ForestName = null;
             HealthScore = null;
@@ -554,6 +567,7 @@ namespace ADReplic.App.ViewModels
         private void ApplyConclusions(AuditSnapshot snapshot)
         {
             HealthScore = snapshot.HealthScore;
+            ClockOffsets = ClockOffsetTable.Build(snapshot.DomainControllers, snapshot.ClockHealth);
             foreach (var issue in snapshot.Issues) Issues.Add(issue);
             foreach (var group in IssueGrouper.Group(snapshot.Issues)) IssueRows.Add(new IssueRowViewModel(group));
             AuditSummary = AuditSummaryWriter.Write(snapshot);

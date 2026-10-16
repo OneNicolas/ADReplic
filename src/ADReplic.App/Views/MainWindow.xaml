@@ -496,6 +496,35 @@
                                     <DataGridTextColumn  Header="Site"        Binding="{Binding SiteName}"  Width="160" MinWidth="100" SortMemberPath="SiteName" />
                                     <DataGridTextColumn  Header="IP"          Binding="{Binding IPAddress}" Width="120" MinWidth="100" SortMemberPath="IPAddress" />
                                     <DataGridTextColumn  Header="OS"          Binding="{Binding OSVersion}" Width="200" MinWidth="120" SortMemberPath="OSVersion" />
+                                    <!-- Décalage d'horloge (v0.9.0) : la ligne reste un DomainControllerInfo, la valeur
+                                         vient de ClockOffsets (VM) par nom d'hôte via un multi-binding. Non triable :
+                                         pas de propriété de ligne à trier (choix assumé pour garder le menu contextuel). -->
+                                    <DataGridTemplateColumn Header="Décalage" Width="110" MinWidth="90" CanUserSort="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                    <TextBlock.Text>
+                                                        <MultiBinding Converter="{x:Static vm:ClockOffsetConverter.Instance}" ConverterParameter="Text" Mode="OneWay">
+                                                            <Binding Path="HostName" />
+                                                            <Binding Path="DataContext.ClockOffsets" RelativeSource="{RelativeSource AncestorType=DataGrid}" />
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                    <TextBlock.Foreground>
+                                                        <MultiBinding Converter="{x:Static vm:ClockOffsetConverter.Instance}" ConverterParameter="Brush" Mode="OneWay">
+                                                            <Binding Path="HostName" />
+                                                            <Binding Path="DataContext.ClockOffsets" RelativeSource="{RelativeSource AncestorType=DataGrid}" />
+                                                        </MultiBinding>
+                                                    </TextBlock.Foreground>
+                                                    <TextBlock.ToolTip>
+                                                        <MultiBinding Converter="{x:Static vm:ClockOffsetConverter.Instance}" ConverterParameter="ToolTip" Mode="OneWay">
+                                                            <Binding Path="HostName" />
+                                                            <Binding Path="DataContext.ClockOffsets" RelativeSource="{RelativeSource AncestorType=DataGrid}" />
+                                                        </MultiBinding>
+                                                    </TextBlock.ToolTip>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                     <DataGridCheckBoxColumn Header="GC"       Binding="{Binding IsGlobalCatalog}" Width="60" MinWidth="50" SortMemberPath="IsGlobalCatalog" />
                                     <DataGridTextColumn  Header="Rôles FSMO"  Binding="{Binding Roles, Converter={x:Static vm:StringJoinConverter.Instance}}" Width="*" MinWidth="200" />
                                 </DataGrid.Columns>

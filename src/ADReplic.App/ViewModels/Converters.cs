@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using ADReplic.Core.Diagnostics.Issues;
+using ADReplic.Core.Health.Clock;
 using ADReplic.Core.Models;
 
 namespace ADReplic.App.ViewModels
@@ -454,5 +455,89 @@ namespace ADReplic.App.ViewModels
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Colonne « Décalage » de l'onglet Contrôleurs (v0.9.0). La grille reste liée
+    /// aux DomainControllerInfo (menu contextuel « Auditer ce DC seul » intact) ;
+    /// le décalage est cherché dans la ClockOffsetTable du ViewModel par nom d'hôte.
+    /// Valeurs liées : [0] HostName, [1] ClockOffsetTable. Paramètre : Text, ToolTip ou Brush.
+    /// </summary>
+    public sealed class ClockOffsetConverter : IMultiValueConverter
+    {
+        public static readonly ClockOffsetConverter Instance = new ClockOffsetConverter();
+
+        private static readonly TimeSpan WarningThreshold = TimeSpan.FromMinutes(1);
+        private static readonly SolidColorBrush Warning  = Freeze(0x9A, 0x67, 0x00);
+        private static readonly SolidColorBrush Critical = Freeze(0xD1, 0x24, 0x2F);
+
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            var host = values != null && values.Length > 0 ? values[0] as string : null;
+            var table = values != null && values.Length > 1 ? values[1] as ClockOffsetTable : null;
+            var entry = table?.Find(host);
+            var mode = parameter as string ?? "Text";
+
+            switch (mode)
+            {
+                case "ToolTip": return BuildToolTip(table, entry);
+                case "Brush":   return BuildBrush(entry);
+                default:        return BuildText(entry);
+            }
+        }
+
+        private static string BuildText(ClockOffsetEntry entry)
+        {
+            if (entry == null) return ClockOffsetFormatter.NotMeasured;
+            if (entry.IsReference) return "réf.";
+            return ClockOffsetFormatter.ToText(entry.OffsetFromReference);
+        }
+
+        private static string BuildToolTip(ClockOffsetTable table, ClockOffsetEntry entry)
+        {
+            if (table == null || !table.HasData) return "Horloge non mesurée : la sonde d'horloge n'a pas tourné pour cet audit.";
+            if (entry == null) return "Horloge non mesurée pour ce contrôleur.";
+
+            var referenceLabel = table.ReferenceIsPdc
+                ? "le maître PDC, source de temps autoritaire de la forêt"
+                : "la médiane des contrôleurs (le maître PDC n'a pas pu être mesuré)";
+
+            switch (entry.Status)
+            {
+                case ClockCheckStatus.Skipped: return "Horloge non interrogée : contrôleur injoignable à la découverte.";
+                case ClockCheckStatus.Timeout: return "Horloge non lue : pas de réponse LDAP dans le délai." + Detail(entry);
+                case ClockCheckStatus.Error:   return "Horloge non lue : réponse absente ou illisible." + Detail(entry);
+            }
+
+            var lines = entry.IsReference
+                ? $"Référence des décalages : {referenceLabel}."
+                : $"Décalage par rapport à {table.ReferenceHost} ({referenceLabel}). " +
+                  (entry.OffsetFromReference < TimeSpan.Zero ? "Ce contrôleur est en retard." : "Ce contrôleur est en avance.");
+            if (entry.DcTimeUtc.HasValue)
+                lines += $"\nHeure annoncée par le DC : {entry.DcTimeUtc.Value:yyyy-MM-dd HH:mm:ss} UTC\nHeure du poste d'audit : {entry.ObservedAtUtc:yyyy-MM-dd HH:mm:ss} UTC";
+            return lines;
+        }
+
+        private static string Detail(ClockOffsetEntry entry)
+            => string.IsNullOrWhiteSpace(entry.Detail) ? "" : "\n" + entry.Detail.Trim();
+
+        private static object BuildBrush(ClockOffsetEntry entry)
+        {
+            if (entry?.OffsetFromReference == null) return DependencyProperty.UnsetValue;
+            var magnitude = entry.OffsetFromReference.Value.Duration();
+            if (magnitude >= ClockSkewDetector.Threshold) return Critical;
+            if (magnitude >= WarningThreshold) return Warning;
+            return DependencyProperty.UnsetValue;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static SolidColorBrush Freeze(byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
     }
 }
