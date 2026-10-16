@@ -812,7 +812,7 @@
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
                                         <DataGridTextColumn Header="Sévérité" Binding="{Binding Issue.Severity}" Width="90"  MinWidth="70"  SortMemberPath="Issue.Severity" />
-                                        <DataGridTextColumn Header="Code"     Binding="{Binding Issue.Code}"     Width="220" MinWidth="140" SortMemberPath="Issue.Code" />
+                                        <DataGridTextColumn Header="Code"     Binding="{Binding Issue.Code}"     Width="250" MinWidth="140" SortMemberPath="Issue.Code" />
                                         <DataGridTextColumn Header="Anomalie" Binding="{Binding Issue.Title}" Width="320" MinWidth="180" SortMemberPath="Issue.Title" />
                                         <!-- Colonne dédiée (la hauteur de ligne est fixe, pas de seconde ligne possible) :
                                              bouton texte « ▸ 10 anomalies liées à … » qui déplie les conséquences sous la ligne. -->

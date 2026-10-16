@@ -90,9 +90,11 @@ namespace ADReplic.Core.Diagnostics.Issues
 
             if (lastError != null)
             {
+                // Les messages Win32 se terminent souvent par un retour à la ligne :
+                // sans Trim, « (code N) » passe à la ligne suivante dans la fiche.
                 var message = string.IsNullOrWhiteSpace(lastError.LastResultMessage)
                     ? Win32ErrorMessage.ResolveOrCode(lastError.LastResultCode)
-                    : lastError.LastResultMessage;
+                    : lastError.LastResultMessage.Trim();
                 text += $"Dernière erreur : {message} (code {lastError.LastResultCode}). ";
             }
 
