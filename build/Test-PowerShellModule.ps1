@@ -1,8 +1,9 @@
 # ============================================================================
 # Test-PowerShellModule.ps1
 # ----------------------------------------------------------------------------
-# Test manuel autonome du module ADReplic PowerShell (lot v0.6.0 :
-# Compare-ADRAudit, parametre -DcName, garde-fou Credential).
+# Test manuel autonome du module ADReplic PowerShell : 8 groupes, du lot
+# v0.6.0 (Compare-ADRAudit, -DcName, garde-fou Credential) au lot v0.8.0
+# (sonde d'horloge clockHealth dans l'export JSON).
 #
 # Concu pour etre lance tel quel sur la machine de test, sans preparation :
 #   - importe le module lui-meme (bin de build par defaut, ou -ModulePath
@@ -181,6 +182,34 @@ Write-Result ($catalog.Count -ge 15) "Catalogue complet : $($catalog.Count) code
 $fromPipeline = @(Get-ADRReplicationFailure -DcName $DcName @target | Get-ADRErrorExplanation)
 $failureCount = @(Get-ADRReplicationFailure -DcName $DcName @target).Count
 Write-Result ($fromPipeline.Count -eq $failureCount) "Pipeline Get-ADRReplicationFailure | Get-ADRErrorExplanation : $($fromPipeline.Count) fiche(s) pour $failureCount echec(s)"
+
+# --- 8. Sonde d'horloge dans l'export JSON (v0.8.0) ---------------------------
+# Get-ADRIssue ne lance aucune sonde sante (choix v0.4.0) : la presence de
+# clockHealth et l'absence de DC_CLOCK_SKEW se verifient donc sur un export
+# JSON COMPLET (sans -SkipHealthProbes), le seul chemin PowerShell qui sonde
+# les horloges. Les DC injoignables sont attendus en statut Skipped : seuls les
+# DC joignables doivent avoir ete lus.
+Write-Host "`n== 8. Sonde d'horloge (export JSON complet) =="
+$jsonFull = Export-ADRAudit -Path (Join-Path $outDir 'audit-full.json') -Format JSON @target
+$audit = Get-Content $jsonFull -Raw -Encoding UTF8 | ConvertFrom-Json
+Write-Result ($null -ne $audit.clockHealth) "clockHealth present dans l'export JSON"
+
+$clockChecks = @($audit.clockHealth.checks)
+Write-Result ($clockChecks.Count -eq $dcs.Count) "Une lecture d'horloge par DC ($($clockChecks.Count) pour $($dcs.Count) DC)"
+
+$reachableHosts = @($dcs | Where-Object { $_.IsReachable } | ForEach-Object { $_.HostName })
+$readOk = @($clockChecks | Where-Object { $_.status -eq 'Ok' -and $null -ne $_.offsetFromAuditHost })
+Write-Result ($readOk.Count -eq $reachableHosts.Count) "Horloge lue (Ok + decalage mesure) sur chaque DC joignable ($($readOk.Count) sur $($reachableHosts.Count))"
+foreach ($check in $clockChecks) {
+    Write-Host "         $($check.hostName) : $($check.status) $($check.offsetFromAuditHost)"
+}
+
+$skewIssues = @($audit.issues | Where-Object { $_.code -eq 'DC_CLOCK_SKEW' })
+Write-Result ($skewIssues.Count -eq 0) "Aucune anomalie DC_CLOCK_SKEW sur une foret aux horloges synchronisees"
+if ($skewIssues.Count -gt 0) {
+    foreach ($issue in $skewIssues) { Write-Host "         $($issue.title)" }
+    Write-Host "         Si le decalage est reel, resynchronisez le DC (w32tm /resync) puis relancez."
+}
 
 # --- Bilan ---------------------------------------------------------------------
 Write-Host ""
