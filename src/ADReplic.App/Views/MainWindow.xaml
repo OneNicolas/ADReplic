@@ -326,13 +326,14 @@
                             Background="{Binding HealthScore.Level, Converter={x:Static vm:HealthLevelToBrushConverter.Instance}}"
                             Visibility="{Binding HasHealthScore, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
                         <!-- Score expliqué (v0.9.0) : points perdus par catégorie avec poids effectifs.
-                             Le ToolTip hérite du DataContext du badge (ViewModel). -->
+                             Un ToolTip est hors de l'arbre visuel : son DataContext doit être
+                             récupéré via PlacementTarget (le badge), pas par héritage. -->
                         <Border.ToolTip>
                             <ToolTip Background="{DynamicResource SurfaceElevated}"
                                      BorderBrush="{DynamicResource Border}"
                                      Foreground="{DynamicResource Foreground}"
                                      Padding="12,10" MaxWidth="460"
-                                     DataContext="{Binding ScoreBreakdown}">
+                                     DataContext="{Binding PlacementTarget.DataContext.ScoreBreakdown, RelativeSource={RelativeSource Self}}">
                                 <StackPanel Grid.IsSharedSizeScope="True">
                                     <TextBlock FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8">
                                         <Run Text="Score" />
