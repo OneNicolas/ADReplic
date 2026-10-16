@@ -324,8 +324,67 @@
                             Cursor="Hand"
                             MouseLeftButtonUp="OnScoreBadgeClick"
                             Background="{Binding HealthScore.Level, Converter={x:Static vm:HealthLevelToBrushConverter.Instance}}"
-                            Visibility="{Binding HasHealthScore, Converter={x:Static vm:BoolToVisibleConverter.Instance}}"
-                            ToolTip="{Binding HealthScore.Summary}">
+                            Visibility="{Binding HasHealthScore, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                        <!-- Score expliqué (v0.9.0) : points perdus par catégorie avec poids effectifs.
+                             Le ToolTip hérite du DataContext du badge (ViewModel). -->
+                        <Border.ToolTip>
+                            <ToolTip Background="{DynamicResource SurfaceElevated}"
+                                     BorderBrush="{DynamicResource Border}"
+                                     Foreground="{DynamicResource Foreground}"
+                                     Padding="12,10" MaxWidth="460"
+                                     DataContext="{Binding ScoreBreakdown}">
+                                <StackPanel Grid.IsSharedSizeScope="True">
+                                    <TextBlock FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8">
+                                        <Run Text="Score" />
+                                        <Run Text="{Binding Value, Mode=OneWay, StringFormat='{}{0}/100'}" />
+                                        <Run Text=" — " />
+                                        <Run Text="{Binding TotalPointsLost, Mode=OneWay}" />
+                                        <Run Text="point(s) perdu(s)" />
+                                    </TextBlock>
+                                    <ItemsControl ItemsSource="{Binding Categories}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition SharedSizeGroup="Name" />
+                                                            <ColumnDefinition Width="56" />
+                                                            <ColumnDefinition Width="70" />
+                                                            <ColumnDefinition Width="80" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,12,0" />
+                                                        <TextBlock Grid.Column="1" TextAlignment="Right"
+                                                                   Text="{Binding WeightPercent, StringFormat='{}{0} %'}"
+                                                                   Visibility="{Binding IsMeasured, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                                        <TextBlock Grid.Column="2" TextAlignment="Right"
+                                                                   Text="{Binding SubScore, StringFormat='{}{0}/100'}"
+                                                                   Visibility="{Binding IsMeasured, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                                        <TextBlock Grid.Column="3" TextAlignment="Right" FontWeight="SemiBold"
+                                                                   Text="{Binding PointsLost, Converter={x:Static vm:PointsLostToTextConverter.Instance}}"
+                                                                   Visibility="{Binding IsMeasured, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                                        <TextBlock Grid.Column="1" Grid.ColumnSpan="3" TextAlignment="Right"
+                                                                   Text="non mesuré (sonde non lancée)" FontStyle="Italic"
+                                                                   Foreground="{DynamicResource SubtleText}"
+                                                                   Visibility="{Binding IsMeasured, Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+                                                    </Grid>
+                                                    <ItemsControl ItemsSource="{Binding Anomalies}" Margin="12,2,0,0">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Foreground="{DynamicResource SubtleText}" FontSize="11" TextWrapping="Wrap">
+                                                                    <Run Text="• " /><Run Text="{Binding Mode=OneWay}" />
+                                                                </TextBlock>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Foreground="{DynamicResource SubtleText}" FontSize="11" Margin="0,4,0,0"
+                                               Text="Poids effectifs : Réplication 50 %, DNS 25 %, Réseau 25 %, redistribués si une sonde manque. Clic : historique des scores." TextWrapping="Wrap" />
+                                </StackPanel>
+                            </ToolTip>
+                        </Border.ToolTip>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding HealthScore.Value, StringFormat='{}{0}/100'}"
                                        Foreground="White" FontWeight="Bold" FontSize="12"

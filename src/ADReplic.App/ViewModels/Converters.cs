@@ -457,6 +457,23 @@ namespace ADReplic.App.ViewModels
             => throw new NotSupportedException();
     }
 
+    /// <summary>Points perdus d'une catégorie du score : « −12,5 pts », « −1 pt », « 0 pt ».</summary>
+    public sealed class PointsLostToTextConverter : IValueConverter
+    {
+        public static readonly PointsLostToTextConverter Instance = new PointsLostToTextConverter();
+        private static readonly CultureInfo French = CultureInfo.GetCultureInfo("fr-FR");
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (!(value is double points) || points < 0.05) return "0 pt";
+            var text = points.ToString("0.#", French);
+            return "\u2212" + text + (points < 1.95 ? " pt" : " pts");
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     /// <summary>
     /// Colonne « Décalage » de l'onglet Contrôleurs (v0.9.0). La grille reste liée
     /// aux DomainControllerInfo (menu contextuel « Auditer ce DC seul » intact) ;

@@ -291,11 +291,15 @@ namespace ADReplic.App.ViewModels
                 if (SetProperty(ref _healthScore, value))
                 {
                     RaisePropertyChanged(nameof(HasHealthScore));
+                    RaisePropertyChanged(nameof(ScoreBreakdown));
                 }
             }
         }
 
         public bool HasHealthScore => _healthScore != null;
+
+        /// <summary>Score expliqué (v0.9.0) : points perdus par catégorie, affiché au survol du badge.</summary>
+        public ScoreBreakdown ScoreBreakdown => HealthScoreExplainer.Explain(_healthScore);
 
         // === Props (nouvelles v0.7.0 : lisibilité) ==========================
 
