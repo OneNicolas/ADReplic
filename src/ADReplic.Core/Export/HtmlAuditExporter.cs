@@ -7,6 +7,7 @@ using System.Text;
 using ADReplic.Core.Abstractions;
 using ADReplic.Core.Diagnostics;
 using ADReplic.Core.Diagnostics.Issues;
+using ADReplic.Core.Health.Clock;
 using ADReplic.Core.Models;
 
 namespace ADReplic.Core.Export
@@ -45,6 +46,7 @@ namespace ADReplic.Core.Export
             AppendDiagnosticsSection(sb, s.Issues);
             AppendDnsHealthSection(sb, s.DnsHealth);
             AppendPortHealthSection(sb, s.PortHealth);
+            AppendClockSection(sb, s);
             AppendFailuresSection(sb, s.ReplicationFailures);
             AppendReplicationTable(sb, s.ReplicationLinks);
             AppendSitesSection(sb, s.Sites);
@@ -361,6 +363,79 @@ namespace ADReplic.Core.Export
                 case PortCheckStatus.Timeout: return "warn";
                 case PortCheckStatus.Error:   return "warn";
                 default:                      return "neutral";
+            }
+        }
+
+        /// <summary>
+        /// Section Horloges (v0.9.0), omise si la sonde n'a pas tourné. Les décalages sont
+        /// rapportés à la référence (PDC mesuré, sinon médiane) via ClockOffsetTable : ce sont
+        /// exactement ceux que juge DC_CLOCK_SKEW, l'horloge du poste d'audit s'annule.
+        /// </summary>
+        private static void AppendClockSection(StringBuilder sb, AuditSnapshot s)
+        {
+            if (s.ClockHealth == null) return;
+
+            sb.AppendLine("<section><h2>Horloges</h2>");
+
+            var table = ClockOffsetTable.Build(s.DomainControllers, s.ClockHealth);
+            if (table.Entries.Count == 0)
+            {
+                sb.AppendLine("<p class=\"empty\">Aucune horloge interrogée.</p></section>");
+                return;
+            }
+
+            if (table.ReferenceHost != null)
+            {
+                sb.AppendFormat("<p>Décalages mesurés par rapport à <strong>{0}</strong> ({1}). Un écart supérieur à 5 min rompt l'authentification Kerberos.</p>",
+                    Encode(table.ReferenceHost),
+                    table.ReferenceIsPdc ? "maître PDC, source de temps autoritaire de la forêt" : "médiane des contrôleurs, le maître PDC n'ayant pas pu être mesuré").AppendLine();
+            }
+
+            var worst = table.Entries.Where(e => e.OffsetFromReference.HasValue).Select(e => e.OffsetFromReference.Value.Duration()).DefaultIfEmpty(TimeSpan.Zero).Max();
+            if (table.MeasuredCount >= 2 && worst < TimeSpan.FromMinutes(1))
+            {
+                sb.AppendLine("<div class=\"banner ok\">✓ Toutes les horloges mesurées sont alignées à moins d'une minute.</div>");
+            }
+
+            sb.AppendLine("<table><thead><tr>");
+            sb.AppendLine("<th></th><th>Contrôleur</th><th>Statut</th><th>Heure annoncée (UTC)</th><th>Décalage</th><th>Détail</th>");
+            sb.AppendLine("</tr></thead><tbody>");
+
+            foreach (var e in table.Entries
+                .OrderBy(x => x.Status == ClockCheckStatus.Ok ? 1 : 0)                                 // non lues en tête
+                .ThenByDescending(x => x.OffsetFromReference?.Duration() ?? TimeSpan.Zero)           // puis les plus décalées
+                .ThenBy(x => x.HostName, StringComparer.OrdinalIgnoreCase))
+            {
+                sb.Append("<tr>");
+                sb.AppendFormat("<td><span class=\"dot {0}\"></span></td>", ClockDotClass(e));
+                sb.AppendFormat("<td>{0}{1}</td>", Encode(e.HostName), e.IsReference ? " <span class=\"muted\">(référence)</span>" : "");
+                sb.AppendFormat("<td>{0}</td>", ClockStatusLabel(e.Status));
+                sb.AppendFormat("<td class=\"num\">{0}</td>", e.DcTimeUtc.HasValue ? e.DcTimeUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : ClockOffsetFormatter.NotMeasured);
+                sb.AppendFormat("<td class=\"num\">{0}</td>", e.IsReference ? "réf." : Encode(ClockOffsetFormatter.ToText(e.OffsetFromReference)));
+                sb.AppendFormat("<td>{0}</td>", Encode(e.Detail));
+                sb.AppendLine("</tr>");
+            }
+            sb.AppendLine("</tbody></table></section>");
+        }
+
+        private static string ClockDotClass(ClockOffsetEntry e)
+        {
+            if (e.Status != ClockCheckStatus.Ok) return e.Status == ClockCheckStatus.Skipped ? "neutral" : "warn";
+            if (e.IsReference || !e.OffsetFromReference.HasValue) return "ok";
+            var magnitude = e.OffsetFromReference.Value.Duration();
+            if (magnitude >= ClockSkewDetector.Threshold) return "fail";
+            return magnitude >= TimeSpan.FromMinutes(1) ? "warn" : "ok";
+        }
+
+        private static string ClockStatusLabel(ClockCheckStatus status)
+        {
+            switch (status)
+            {
+                case ClockCheckStatus.Ok:      return "Lue";
+                case ClockCheckStatus.Skipped: return "Non interrogée (DC injoignable)";
+                case ClockCheckStatus.Timeout: return "Pas de réponse";
+                case ClockCheckStatus.Error:   return "Erreur";
+                default:                       return Encode(status.ToString());
             }
         }
 

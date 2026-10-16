@@ -166,6 +166,63 @@ namespace ADReplic.Core.Tests.Export
         }
 
         [Fact]
+        public void Html_export_omits_clock_section_without_probe()
+        {
+            var target = Path.Combine(_tempDir, "report.html");
+
+            new HtmlAuditExporter().Export(BuildSampleSnapshot(), target);
+
+            Assert.DoesNotContain("<h2>Horloges</h2>", File.ReadAllText(target));
+        }
+
+        [Fact]
+        public void Html_export_writes_clock_section_with_reference_and_offsets()
+        {
+            // dc01 est deja maitre PDC dans le snapshot d'exemple : il sert de reference.
+            var snapshot = BuildSampleSnapshot();
+            var observed = new DateTime(2026, 10, 16, 10, 0, 0, DateTimeKind.Utc);
+            snapshot.ClockHealth = new ClockHealthResult
+            {
+                ProbedAtUtc = observed,
+                Checks = new[]
+                {
+                    new ClockCheckResult { HostName = "dc01.exemple.local", Status = ClockCheckStatus.Ok, DcTimeUtc = observed, ObservedAtUtc = observed, OffsetFromAuditHost = TimeSpan.Zero },
+                    new ClockCheckResult { HostName = "dc02.exemple.local", Status = ClockCheckStatus.Ok, DcTimeUtc = observed.AddMinutes(10), ObservedAtUtc = observed, OffsetFromAuditHost = TimeSpan.FromMinutes(10) }
+                }
+            };
+            var target = Path.Combine(_tempDir, "report.html");
+
+            new HtmlAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("<h2>Horloges</h2>", content);
+            Assert.Contains("maître PDC", content);
+            Assert.Contains("+10 min", content);
+            Assert.Contains("réf.", content);
+        }
+
+        [Fact]
+        public void Html_export_clock_section_explains_skipped_dc()
+        {
+            var snapshot = BuildSampleSnapshot();
+            snapshot.ClockHealth = new ClockHealthResult
+            {
+                Checks = new[]
+                {
+                    new ClockCheckResult { HostName = "dc01.exemple.local", Status = ClockCheckStatus.Ok, OffsetFromAuditHost = TimeSpan.Zero },
+                    new ClockCheckResult { HostName = "dc02.exemple.local", Status = ClockCheckStatus.Skipped }
+                }
+            };
+            var target = Path.Combine(_tempDir, "report.html");
+
+            new HtmlAuditExporter().Export(snapshot, target);
+
+            var content = File.ReadAllText(target);
+            Assert.Contains("Non interrogée", content);
+            Assert.Contains("\u2014", content);
+        }
+
+        [Fact]
         public void Json_export_writes_parseable_json()
         {
             var target = Path.Combine(_tempDir, "audit.json");
