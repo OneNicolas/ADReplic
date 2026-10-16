@@ -20,6 +20,7 @@ using ADReplic.Core.Health.Dns;
 using ADReplic.Core.Health.Ports;
 using ADReplic.Core.Models;
 using ADReplic.Core.Monitoring;
+using ADReplic.Core.Security;
 using ADReplic.Core.Replication;
 using ADReplic.Core.Topology;
 
@@ -39,6 +40,7 @@ namespace ADReplic.App.ViewModels
         private readonly ISnapshotStore _snapshotStore;
         private readonly AuditHistory _scoreHistory;
         private readonly MonitoringSettingsStore _settingsStore;
+        private readonly ICredentialStore _credentialStore;
         private readonly DispatcherTimer _autoRefreshTimer;
         private AuditSnapshot _lastSnapshotForAlert;
 
@@ -90,7 +92,8 @@ namespace ADReplic.App.ViewModels
             ITopologyProvider topologyProvider,
             IDnsHealthProbe dnsHealthProbe,
             IPortHealthProbe portHealthProbe,
-            IEnumerable<IAuditExporter> exporters)
+            IEnumerable<IAuditExporter> exporters,
+            ICredentialStore credentialStore = null)
         {
             _inventoryProvider = inventoryProvider ?? throw new ArgumentNullException(nameof(inventoryProvider));
             _replicationProbe = replicationProbe ?? throw new ArgumentNullException(nameof(replicationProbe));
@@ -125,6 +128,8 @@ namespace ADReplic.App.ViewModels
             _autoRefreshTimer.Tick += OnAutoRefreshTick;
             // Le toggle reste OFF par défaut au démarrage, peu importe l'état précédent
             // (décision actée : éviter qu'un audit non sollicité parte au lancement).
+            _credentialStore = credentialStore ?? new WindowsCredentialStore();
+            RestoreTargetAndCredentials(settings);
 
             Compare = new CompareViewModel();
 
@@ -461,11 +466,83 @@ namespace ADReplic.App.ViewModels
             CredentialUserName = userName;
         }
 
+        // === Identifiants mémorisés (v0.9.0) ================================
+
+        /// <summary>Vrai si le coffre Windows a une entrée pour la forêt cible courante.</summary>
+        public bool HasSavedCredentials
+        {
+            get
+            {
+                try { return _credentialStore.TryRead(CredentialTargets.ForForest(_targetForestName), out _); }
+                catch { return false; }
+            }
+        }
+
+        /// <summary>
+        /// Applique les identifiants et, si demandé, les mémorise dans le Gestionnaire
+        /// d'identifiants Windows pour la forêt cible courante. Sans mémorisation demandée,
+        /// une entrée existante est laissée telle quelle : « Oublier » est un geste explicite.
+        /// </summary>
+        public void ApplyCredentials(string userName, string password, bool remember)
+        {
+            ApplyCredentials(userName, password);
+            if (!remember || string.IsNullOrEmpty(userName) || string.IsNullOrEmpty(password)) return;
+
+            try
+            {
+                _credentialStore.Save(CredentialTargets.ForForest(_targetForestName), userName, password);
+                PersistSettings();
+                StatusMessage = $"Identifiants de {userName} mémorisés sur ce poste pour {ForestLabel()}.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Identifiants appliqués mais non mémorisés : " + ex.Message;
+            }
+        }
+
+        /// <summary>Supprime l'entrée du coffre pour la forêt cible et revient aux identifiants Windows.</summary>
+        public void ForgetSavedCredentials()
+        {
+            try
+            {
+                _credentialStore.Delete(CredentialTargets.ForForest(_targetForestName));
+                ApplyCredentials(null, null);
+                StatusMessage = $"Identifiants mémorisés oubliés pour {ForestLabel()}.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Impossible d'oublier les identifiants : " + ex.Message;
+            }
+        }
+
+        /// <summary>Au lancement : recharge la dernière forêt cible et, si le coffre en a, ses identifiants.</summary>
+        private void RestoreTargetAndCredentials(MonitoringSettings settings)
+        {
+            if (string.IsNullOrWhiteSpace(settings?.LastTargetForest)) return;
+            TargetForestName = settings.LastTargetForest;
+
+            try
+            {
+                if (_credentialStore.TryRead(CredentialTargets.ForForest(_targetForestName), out var saved))
+                {
+                    ApplyCredentials(saved.UserName, saved.Password);
+                    StatusMessage = $"Cible {ForestLabel()} et identifiants de {saved.UserName} rechargés depuis ce poste.";
+                }
+            }
+            catch
+            {
+                // Coffre indisponible : on garde la forêt, l'utilisateur ressaisira.
+            }
+        }
+
+        private string ForestLabel() => string.IsNullOrWhiteSpace(_targetForestName) ? "la forêt courante" : _targetForestName.Trim();
+
         private void ResetTarget()
         {
             TargetForestName = null;
             TargetDcHostName = null;
             ApplyCredentials(null, null);
+            PersistSettings();
             StatusMessage = "Cible réinitialisée : forêt courante, identifiants Windows.";
         }
 
@@ -699,6 +776,8 @@ namespace ADReplic.App.ViewModels
 
                     _lastAuditWasSingleDc = singleDcMode;
                     finalSnapshot = snapshot;
+                    // Audit réussi : la forêt cible devient celle à proposer au prochain lancement.
+                    PersistSettings();
                 }
             }
             catch (OperationCanceledException)
@@ -928,7 +1007,8 @@ namespace ADReplic.App.ViewModels
             {
                 _settingsStore.Save(new MonitoringSettings
                 {
-                    IntervalMinutes = _autoRefreshIntervalMinutes
+                    IntervalMinutes = _autoRefreshIntervalMinutes,
+                    LastTargetForest = string.IsNullOrWhiteSpace(_targetForestName) ? null : _targetForestName.Trim()
                 });
             }
             catch (Exception ex)

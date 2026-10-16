@@ -132,11 +132,14 @@ namespace ADReplic.App.Views
 
         private void ShowCredentialsDialog(MainViewModel vm)
         {
-            var dialog = new CredentialsDialog(vm.CredentialUserName) { Owner = this };
-            if (dialog.ShowDialog() == true)
-            {
-                vm.ApplyCredentials(dialog.UserName, dialog.Password);
-            }
+            var forestLabel = string.IsNullOrWhiteSpace(vm.TargetForestName) ? "la forêt courante" : vm.TargetForestName.Trim();
+            var dialog = new CredentialsDialog(vm.CredentialUserName, vm.HasSavedCredentials, forestLabel) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+
+            if (dialog.Forget)
+                vm.ForgetSavedCredentials();
+            else
+                vm.ApplyCredentials(dialog.UserName, dialog.Password, dialog.Remember);
         }
 
         private void ShowCompareDialog(MainViewModel vm)
