@@ -398,7 +398,7 @@ namespace ADReplic.Core.Export
             }
 
             sb.AppendLine("<table><thead><tr>");
-            sb.AppendLine("<th></th><th>Contrôleur</th><th>Statut</th><th>Heure annoncée (UTC)</th><th>Décalage</th><th>Détail</th>");
+            sb.AppendLine("<th></th><th>Contrôleur</th><th>Statut</th><th class=\"num\">Heure annoncée (UTC)</th><th class=\"num\">Décalage</th><th>Détail</th>");
             sb.AppendLine("</tr></thead><tbody>");
 
             foreach (var e in table.Entries
@@ -677,7 +677,7 @@ th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eaeef2;
 th { background: #f6f8fa; font-weight: 600; font-size: 12px; color: #586069; }
 tr:last-child td { border-bottom: none; }
 td.mono { font-family: Consolas, 'SF Mono', monospace; font-size: 12px; color: #424a53; }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #6e7781; }
 .dot.ok    { background: #1a7f37; }
 .dot.warn  { background: #9a6700; }
