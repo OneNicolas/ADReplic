@@ -29,6 +29,8 @@ namespace ADReplic.Core.Topology
         public int HiddenDcCount { get; set; }
         public int UnreachableCount { get; set; }
         public bool HasUnreachableDc => UnreachableCount > 0;
+        public bool HasHiddenDcs => HiddenDcCount > 0;
+        public bool HasNoDc => DomainControllers.Count == 0;
         public double Left => X - Width / 2;
         public double Top => Y - Height / 2;
     }

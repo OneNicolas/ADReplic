@@ -62,6 +62,7 @@ namespace ADReplic.App.ViewModels
         // === Lisibilité (v0.7.0) ============================================
         private string _auditSummary;
         private ClockOffsetTable _clockOffsets = ClockOffsetTable.Empty;
+        private TopologyGraph _topologyGraph = new TopologyGraph();
         private ReplicationFailureInfo _selectedFailure;
         private DetectedIssue _selectedIssue;
         private IssueRowViewModel _selectedIssueRow;
@@ -330,6 +331,35 @@ namespace ADReplic.App.ViewModels
         {
             get => _clockOffsets;
             private set => SetProperty(ref _clockOffsets, value);
+        }
+
+        /// <summary>Vue topologie (v0.9.0) : sites, DC et liens inter-sites positionnés, reconstruits à chaque audit ou ouverture JSON.</summary>
+        public TopologyGraph TopologyGraph
+        {
+            get => _topologyGraph;
+            private set
+            {
+                if (SetProperty(ref _topologyGraph, value))
+                {
+                    RaisePropertyChanged(nameof(HasTopologyGraph));
+                    RaisePropertyChanged(nameof(TopologyCaption));
+                }
+            }
+        }
+
+        public bool HasTopologyGraph => _topologyGraph != null && !_topologyGraph.IsEmpty;
+
+        public string TopologyCaption
+        {
+            get
+            {
+                if (!HasTopologyGraph) return null;
+                var sites = _topologyGraph.Nodes.Count;
+                var links = _topologyGraph.Edges.Select(e => e.LinkName).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                var dcs = _topologyGraph.Nodes.Sum(n => n.DomainControllers.Count);
+                var linksLabel = links == 0 ? "aucun lien inter-sites" : links == 1 ? "1 lien inter-sites" : links + " liens inter-sites";
+                return $"{sites} site{(sites > 1 ? "s" : "")}, {dcs} DC, {linksLabel}";
+            }
         }
 
         /// <summary>
@@ -631,6 +661,7 @@ namespace ADReplic.App.ViewModels
             _lastPortHealth = null;
             _lastClockHealth = null;
             ClockOffsets = ClockOffsetTable.Empty;
+            TopologyGraph = new TopologyGraph();
             _lastAuditWasSingleDc = false;
             ForestName = null;
             HealthScore = null;
@@ -646,6 +677,7 @@ namespace ADReplic.App.ViewModels
         {
             HealthScore = snapshot.HealthScore;
             ClockOffsets = ClockOffsetTable.Build(snapshot.DomainControllers, snapshot.ClockHealth);
+            TopologyGraph = TopologyLayout.Build(snapshot.Sites, snapshot.SiteLinks, snapshot.DomainControllers);
             foreach (var issue in snapshot.Issues) Issues.Add(issue);
             foreach (var group in IssueGrouper.Group(snapshot.Issues)) IssueRows.Add(new IssueRowViewModel(group));
             AuditSummary = AuditSummaryWriter.Write(snapshot);

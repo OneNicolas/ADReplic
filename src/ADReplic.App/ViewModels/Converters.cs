@@ -457,6 +457,55 @@ namespace ADReplic.App.ViewModels
             => throw new NotSupportedException();
     }
 
+    /// <summary>Vue topologie (v0.9.0) : couleur d'une arête selon son tiers de coût relatif.</summary>
+    public sealed class CostTierToBrushConverter : IValueConverter
+    {
+        public static readonly CostTierToBrushConverter Instance = new CostTierToBrushConverter();
+
+        private static readonly SolidColorBrush Low    = Freeze(0x2D, 0xA4, 0x4E);
+        private static readonly SolidColorBrush Medium = Freeze(0xD4, 0xA7, 0x2C);
+        private static readonly SolidColorBrush High   = Freeze(0xD1, 0x24, 0x2F);
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            switch (value is ADReplic.Core.Topology.CostTier t ? t : ADReplic.Core.Topology.CostTier.Low)
+            {
+                case ADReplic.Core.Topology.CostTier.High:   return High;
+                case ADReplic.Core.Topology.CostTier.Medium: return Medium;
+                default:                                     return Low;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+
+        private static SolidColorBrush Freeze(byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
+    }
+
+    /// <summary>Vue topologie : épaisseur d'arête inverse au coût (le lien préféré est le plus visible).</summary>
+    public sealed class CostTierToThicknessConverter : IValueConverter
+    {
+        public static readonly CostTierToThicknessConverter Instance = new CostTierToThicknessConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            switch (value is ADReplic.Core.Topology.CostTier t ? t : ADReplic.Core.Topology.CostTier.Low)
+            {
+                case ADReplic.Core.Topology.CostTier.High:   return 2.0;
+                case ADReplic.Core.Topology.CostTier.Medium: return 3.5;
+                default:                                     return 6.0;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     /// <summary>Points perdus d'une catégorie du score : « −12,5 pts », « −1 pt », « 0 pt ».</summary>
     public sealed class PointsLostToTextConverter : IValueConverter
     {

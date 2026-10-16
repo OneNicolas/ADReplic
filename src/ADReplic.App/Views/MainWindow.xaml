@@ -857,6 +857,162 @@
                         </Border>
                     </TabItem>
 
+                    <!-- Topologie (v0.9.0) : dessin des sites et liens inter-sites calculé par
+                         TopologyLayout (Core) dans un canevas fixe 1000x620 ; le Viewbox l'adapte à
+                         la fenêtre. Deux ItemsControl superposés : arêtes dessous, cartes de site dessus. -->
+                    <TabItem Header="Topologie">
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="{Binding TopologyCaption}" FontSize="12"
+                                           Foreground="{DynamicResource SubtleText}" Margin="0,0,0,8"
+                                           Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+
+                                <TextBlock Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SubtleText}" FontSize="13"
+                                           Text="Aucune topologie à afficher : lancez un audit ou ouvrez un audit JSON."
+                                           Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
+
+                                <Viewbox Grid.Row="1" Stretch="Uniform" StretchDirection="Both"
+                                         Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                    <Grid Width="1000" Height="620">
+                                        <!-- Arêtes : liens inter-sites, couleur = tier de coût, épaisseur inverse au coût -->
+                                        <ItemsControl ItemsSource="{Binding TopologyGraph.Edges}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Line X1="{Binding X1}" Y1="{Binding Y1}" X2="{Binding X2}" Y2="{Binding Y2}"
+                                                          Stroke="{Binding CostTier, Converter={x:Static vm:CostTierToBrushConverter.Instance}}"
+                                                          StrokeThickness="{Binding CostTier, Converter={x:Static vm:CostTierToThicknessConverter.Instance}}"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                                        <Line.ToolTip>
+                                                            <TextBlock>
+                                                                <Run Text="{Binding LinkName, Mode=OneWay}" FontWeight="SemiBold" /><LineBreak />
+                                                                <Run Text="{Binding FromSite, Mode=OneWay}" /><Run Text=" ↔ " /><Run Text="{Binding ToSite, Mode=OneWay}" /><LineBreak />
+                                                                <Run Text="Coût " /><Run Text="{Binding Cost, Mode=OneWay}" />
+                                                                <Run Text=" · réplication toutes les " /><Run Text="{Binding ReplicationInterval, Mode=OneWay, Converter={x:Static vm:LatencyToTextConverter.Instance}}" />
+                                                                <Run Text=" · transport " /><Run Text="{Binding TransportType, Mode=OneWay}" />
+                                                            </TextBlock>
+                                                        </Line.ToolTip>
+                                                    </Line>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Étiquettes de coût au milieu des arêtes -->
+                                        <ItemsControl ItemsSource="{Binding TopologyGraph.Edges}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding LabelX}" />
+                                                    <Setter Property="Canvas.Top" Value="{Binding LabelY}" />
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{DynamicResource SurfaceElevated}" BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                                                            CornerRadius="10" Padding="8,2" Margin="-22,-11,0,0" IsHitTestVisible="False">
+                                                        <TextBlock Text="{Binding Cost}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Foreground}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Cartes de site -->
+                                        <ItemsControl ItemsSource="{Binding TopologyGraph.Nodes}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding Left}" />
+                                                    <Setter Property="Canvas.Top" Value="{Binding Top}" />
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Width="{Binding Width}" Height="{Binding Height}"
+                                                            Background="{DynamicResource SurfaceElevated}" CornerRadius="6" BorderThickness="1.5"
+                                                            BorderBrush="{DynamicResource BorderStrong}" Padding="10,6">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding HasUnreachableDc}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Danger}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Border.ToolTip>
+                                                            <ItemsControl ItemsSource="{Binding DomainControllers}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Text="{Binding HostName}" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Border.ToolTip>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding SiteName}" FontWeight="SemiBold" FontSize="13"
+                                                                       Foreground="{DynamicResource Foreground}" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding Location}" FontSize="10" Foreground="{DynamicResource SubtleText}"
+                                                                       TextTrimming="CharacterEllipsis" Margin="0,0,0,4"
+                                                                       Visibility="{Binding Location, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
+                                                            <ItemsControl ItemsSource="{Binding VisibleDomainControllers}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal" Height="20">
+                                                                            <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                                                     Fill="{Binding IsReachable, Converter={x:Static vm:ReachabilityToBrushConverter.Instance}}" />
+                                                                            <TextBlock Text="{Binding HostName}" FontSize="11" VerticalAlignment="Center"
+                                                                                       Foreground="{DynamicResource Foreground}" TextTrimming="CharacterEllipsis" MaxWidth="180" />
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <TextBlock FontSize="11" FontStyle="Italic" Foreground="{DynamicResource SubtleText}" Height="20"
+                                                                       Visibility="{Binding HasHiddenDcs, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                                                <Run Text="+" /><Run Text="{Binding HiddenDcCount, Mode=OneWay}" /><Run Text=" autre(s) contrôleur(s)" />
+                                                            </TextBlock>
+                                                            <TextBlock Text="Aucun contrôleur dans ce site" FontSize="11" FontStyle="Italic"
+                                                                       Foreground="{DynamicResource SubtleText}" Height="20"
+                                                                       Visibility="{Binding HasNoDc, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Viewbox>
+
+                                <!-- Légende -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0"
+                                            Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                    <TextBlock Text="Coût des liens (relatif à cette forêt) :" FontSize="11" Foreground="{DynamicResource SubtleText}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <Rectangle Width="24" Height="6" Fill="#2DA44E" RadiusX="3" RadiusY="3" VerticalAlignment="Center" />
+                                    <TextBlock Text="bas" FontSize="11" Foreground="{DynamicResource SubtleText}" VerticalAlignment="Center" Margin="6,0,14,0" />
+                                    <Rectangle Width="24" Height="3.5" Fill="#D4A72C" RadiusX="2" RadiusY="2" VerticalAlignment="Center" />
+                                    <TextBlock Text="moyen" FontSize="11" Foreground="{DynamicResource SubtleText}" VerticalAlignment="Center" Margin="6,0,14,0" />
+                                    <Rectangle Width="24" Height="2" Fill="#D1242F" RadiusX="1" RadiusY="1" VerticalAlignment="Center" />
+                                    <TextBlock Text="élevé" FontSize="11" Foreground="{DynamicResource SubtleText}" VerticalAlignment="Center" Margin="6,0,20,0" />
+                                    <Ellipse Width="8" Height="8" Fill="#1A7F37" VerticalAlignment="Center" />
+                                    <TextBlock Text="DC joignable" FontSize="11" Foreground="{DynamicResource SubtleText}" VerticalAlignment="Center" Margin="6,0,14,0" />
+                                    <Ellipse Width="8" Height="8" Fill="#D1242F" VerticalAlignment="Center" />
+                                    <TextBlock Text="DC injoignable" FontSize="11" Foreground="{DynamicResource SubtleText}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </TabItem>
+
                     <TabItem Header="Diagnostics">
                         <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="0">
                             <Grid>

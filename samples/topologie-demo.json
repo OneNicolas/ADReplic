@@ -1,0 +1,31 @@
+{
+  "forestName": "exemple.local",
+  "generatedAt": "2026-10-16T16:00:00.0000000Z",
+  "isSingleDcMode": false,
+  "domainControllers": [
+    { "hostName": "srv-dc-01.exemple.local", "domain": "exemple.local", "siteName": "Paris", "ipAddress": "10.10.0.1", "osVersion": "Windows Server 2025 Standard", "isGlobalCatalog": true, "roles": ["PDC", "RID", "Infrastructure", "SchemaMaster", "NamingMaster"], "isReachable": true },
+    { "hostName": "srv-dc-02.exemple.local", "domain": "exemple.local", "siteName": "Paris", "ipAddress": "10.10.0.2", "osVersion": "Windows Server 2025 Standard", "isGlobalCatalog": true, "roles": [], "isReachable": true },
+    { "hostName": "srv-dc-11.exemple.local", "domain": "exemple.local", "siteName": "Lyon", "ipAddress": "10.20.0.1", "osVersion": "Windows Server 2022 Standard", "isGlobalCatalog": true, "roles": [], "isReachable": true },
+    { "hostName": "srv-dc-21.exemple.local", "domain": "exemple.local", "siteName": "Nantes", "ipAddress": "10.30.0.1", "osVersion": "Windows Server 2022 Standard", "isGlobalCatalog": false, "roles": [], "isReachable": false },
+    { "hostName": "srv-dc-31.exemple.local", "domain": "exemple.local", "siteName": "Lille", "ipAddress": "10.40.0.1", "osVersion": "Windows Server 2019 Standard", "isGlobalCatalog": true, "roles": [], "isReachable": true }
+  ],
+  "replicationLinks": [
+    { "destinationDc": "srv-dc-02.exemple.local", "sourceDc": "srv-dc-01.exemple.local", "namingContext": "DC=exemple,DC=local", "status": "Healthy", "lastAttempt": "2026-10-16T15:59:00Z", "lastSuccess": "2026-10-16T15:59:00Z", "consecutiveFailures": 0, "lastResultCode": 0 },
+    { "destinationDc": "srv-dc-01.exemple.local", "sourceDc": "srv-dc-02.exemple.local", "namingContext": "DC=exemple,DC=local", "status": "Healthy", "lastAttempt": "2026-10-16T15:59:00Z", "lastSuccess": "2026-10-16T15:59:00Z", "consecutiveFailures": 0, "lastResultCode": 0 },
+    { "destinationDc": "srv-dc-11.exemple.local", "sourceDc": "srv-dc-01.exemple.local", "namingContext": "DC=exemple,DC=local", "status": "Healthy", "lastAttempt": "2026-10-16T15:30:00Z", "lastSuccess": "2026-10-16T15:30:00Z", "consecutiveFailures": 0, "lastResultCode": 0 },
+    { "destinationDc": "srv-dc-31.exemple.local", "sourceDc": "srv-dc-11.exemple.local", "namingContext": "DC=exemple,DC=local", "status": "Healthy", "lastAttempt": "2026-10-16T15:30:00Z", "lastSuccess": "2026-10-16T15:30:00Z", "consecutiveFailures": 0, "lastResultCode": 0 },
+    { "destinationDc": "srv-dc-21.exemple.local", "sourceDc": "srv-dc-01.exemple.local", "namingContext": "DC=exemple,DC=local", "status": "Unreachable", "lastAttempt": null, "lastSuccess": null, "consecutiveFailures": 0, "lastResultCode": 0 }
+  ],
+  "replicationFailures": [],
+  "sites": [
+    { "name": "Paris", "location": "Siège", "domainControllers": ["srv-dc-01.exemple.local", "srv-dc-02.exemple.local"], "subnets": ["10.10.0.0/16"], "bridgeheadServers": [] },
+    { "name": "Lyon", "location": "Agence Sud-Est", "domainControllers": ["srv-dc-11.exemple.local"], "subnets": ["10.20.0.0/16"], "bridgeheadServers": [] },
+    { "name": "Nantes", "location": "Agence Ouest", "domainControllers": ["srv-dc-21.exemple.local"], "subnets": ["10.30.0.0/16"], "bridgeheadServers": [] },
+    { "name": "Lille", "location": "Agence Nord", "domainControllers": ["srv-dc-31.exemple.local"], "subnets": ["10.40.0.0/16"], "bridgeheadServers": [] }
+  ],
+  "siteLinks": [
+    { "name": "Paris-Lyon", "cost": 100, "replicationInterval": "00:15:00", "transportType": "IP", "changeNotificationEnabled": true, "sites": ["Paris", "Lyon"] },
+    { "name": "Paris-Nantes", "cost": 200, "replicationInterval": "03:00:00", "transportType": "IP", "changeNotificationEnabled": false, "sites": ["Paris", "Nantes"] },
+    { "name": "Lyon-Lille", "cost": 500, "replicationInterval": "06:00:00", "transportType": "IP", "changeNotificationEnabled": false, "sites": ["Lyon", "Lille"] }
+  ]
+}
