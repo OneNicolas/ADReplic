@@ -94,7 +94,7 @@ namespace ADReplic.PowerShell.Cmdlets
                 WriteVerbose($"  {dcs.Count} DC trouvés.");
 
                 WriteVerbose("Lecture de la topologie...");
-                var topoTask = new TopologyProvider().GetAsync(context, cts.Token);
+                var topoTask = new TopologyProvider().GetAsync(context, DcReachabilityChecker.FirstReachableHost(dcs), cts.Token);
                 topoTask.Wait(cts.Token);
                 topology = topoTask.Result;
 

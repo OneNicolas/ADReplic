@@ -27,6 +27,15 @@ namespace ADReplic.Core.Discovery
             _prober = prober ?? throw new ArgumentNullException(nameof(prober));
         }
 
+        /// <summary>
+        /// Premier DC ayant passé le pré-test de joignabilité, ou null : cible à
+        /// préférer pour toute lecture « forêt » (topologie) plutôt que de laisser
+        /// le localisateur choisir un DC peut-être éteint.
+        /// </summary>
+        public static string FirstReachableHost(System.Collections.Generic.IEnumerable<DomainControllerInfo> dcs)
+            => dcs == null ? null
+               : System.Linq.Enumerable.FirstOrDefault(dcs, d => d != null && d.IsReachable && !string.IsNullOrWhiteSpace(d.HostName))?.HostName;
+
         /// <summary>Synchrone : appelé depuis le thread de découverte, déjà hors UI.</summary>
         public bool IsReachable(string hostName, CancellationToken cancellationToken)
         {

@@ -646,7 +646,7 @@ namespace ADReplic.App.ViewModels
                     }
 
                     StatusMessage = "Lecture de la topologie...";
-                    _topology = await _topologyProvider.GetAsync(context, cts.Token);
+                    _topology = await _topologyProvider.GetAsync(context, DcReachabilityChecker.FirstReachableHost(dcs), cts.Token);
                     foreach (var site in _topology.Sites) Sites.Add(site);
                     foreach (var link in _topology.SiteLinks) SiteLinks.Add(link);
 
@@ -758,15 +758,17 @@ namespace ADReplic.App.ViewModels
         }
 
         /// <summary>
-        /// Audit arrêté avant toute collecte : bandeau neutre (HealthScore null → gris)
-        /// avec une phrase explicite, et grilles vides en mode « aucune donnée ».
+        /// Audit arrêté en route : bandeau neutre (HealthScore null → gris) avec une
+        /// phrase explicite, et grilles vides en mode « aucune donnée ». Si la
+        /// découverte avait abouti, la phrase parle de données partielles plutôt que
+        /// d'affirmer, à tort, que rien n'a été collecté.
         /// </summary>
         private void MarkAuditNotCompleted(string explanation)
         {
             _lastAuditFailed = true;
             HasAuditData = false;
             RaisePropertyChanged(nameof(EmptyStateMessage));
-            AuditSummary = AuditSummaryWriter.WriteNotCompleted(explanation);
+            AuditSummary = AuditSummaryWriter.WriteNotCompleted(explanation, partialData: DomainControllers.Count > 0);
         }
 
         private static string BuildFinalStatus(

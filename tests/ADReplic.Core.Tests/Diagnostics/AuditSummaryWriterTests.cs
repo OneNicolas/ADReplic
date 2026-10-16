@@ -248,6 +248,18 @@ namespace ADReplic.Core.Tests.Diagnostics
         }
 
         [Fact]
+        public void Not_completed_audit_after_discovery_speaks_of_partial_data()
+        {
+            // Vu sur la forêt de test, PDC éteint : la découverte avait listé les 2 DC
+            // puis une étape suivante a échoué. « Aucune donnée collectée » était faux.
+            var text = AuditSummaryWriter.WriteNotCompleted("Contrôleur de domaine injoignable.", partialData: true);
+
+            Assert.Contains("n'a pas abouti", text);
+            Assert.Contains("partielles", text);
+            Assert.DoesNotContain("Aucune donnée n'a été collectée", text);
+        }
+
+        [Fact]
         public void Not_completed_audit_without_explanation_still_reads_well()
         {
             var text = AuditSummaryWriter.WriteNotCompleted(null);

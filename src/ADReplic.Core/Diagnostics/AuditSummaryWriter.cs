@@ -19,13 +19,15 @@ namespace ADReplic.Core.Diagnostics
         /// soit (erreur, délai dépassé). Sans elle, des onglets vides ressemblent à une
         /// forêt saine ; la phrase dit explicitement que ce n'est pas le cas.
         /// </summary>
-        public static string WriteNotCompleted(string explanation)
+        public static string WriteNotCompleted(string explanation, bool partialData = false)
         {
             var head = string.IsNullOrWhiteSpace(explanation)
                 ? "L'audit n'a pas abouti."
                 : "L'audit n'a pas abouti : " + explanation.Trim();
             if (!head.EndsWith(".")) head += ".";
-            return head + " Aucune donnée n'a été collectée : les onglets vides ne reflètent pas l'état de la forêt.";
+            return partialData
+                ? head + " Les données affichées sont partielles : aucun score ni diagnostic n'a pu être calculé."
+                : head + " Aucune donnée n'a été collectée : les onglets vides ne reflètent pas l'état de la forêt.";
         }
 
         public static string Write(AuditSnapshot snapshot)

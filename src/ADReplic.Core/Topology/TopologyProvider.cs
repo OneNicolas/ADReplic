@@ -16,14 +16,17 @@ namespace ADReplic.Core.Topology
     public sealed class TopologyProvider : ITopologyProvider
     {
         public Task<TopologySnapshot> GetAsync(AuditContext context, CancellationToken cancellationToken)
+            => GetAsync(context, null, cancellationToken);
+
+        public Task<TopologySnapshot> GetAsync(AuditContext context, string preferredDcHostName, CancellationToken cancellationToken)
         {
             if (context == null) throw new ArgumentNullException(nameof(context));
-            return Task.Run(() => Collect(context, cancellationToken), cancellationToken);
+            return Task.Run(() => Collect(context, preferredDcHostName, cancellationToken), cancellationToken);
         }
 
-        private static TopologySnapshot Collect(AuditContext context, CancellationToken cancellationToken)
+        private static TopologySnapshot Collect(AuditContext context, string preferredDcHostName, CancellationToken cancellationToken)
         {
-            var forest = DirectoryContextFactory.OpenForest(context);
+            var forest = OpenForestPreferring(context, preferredDcHostName);
 
             var sites = new List<SiteInfo>();
             var linksByName = new Dictionary<string, SiteLinkInfo>(StringComparer.OrdinalIgnoreCase);
@@ -43,6 +46,26 @@ namespace ADReplic.Core.Topology
                     .ThenBy(l => l.Name)
                     .ToList()
             };
+        }
+
+        /// <summary>
+        /// Se lie au DC demandé quand il y en a un ; sinon, ou si cette liaison échoue,
+        /// laisse le localisateur choisir comme avant. Le DC demandé vient de la
+        /// découverte et a passé le pré-test de joignabilité : c'est la cible la plus sûre.
+        /// </summary>
+        private static Forest OpenForestPreferring(AuditContext context, string preferredDcHostName)
+        {
+            if (!string.IsNullOrWhiteSpace(preferredDcHostName))
+            {
+                try
+                {
+                    return Forest.GetForest(DirectoryContextFactory.CreateServerContext(context, preferredDcHostName));
+                }
+                catch (ActiveDirectoryObjectNotFoundException) { }
+                catch (ActiveDirectoryOperationException) { }
+                catch (ActiveDirectoryServerDownException) { }
+            }
+            return DirectoryContextFactory.OpenForest(context);
         }
 
         private static SiteInfo BuildSiteInfo(ActiveDirectorySite site)

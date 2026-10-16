@@ -74,7 +74,7 @@ namespace ADReplic.PowerShell.Cmdlets
                 // La topologie reste collectée à pleine forêt même en mode ciblé
                 // (même choix que la GUI v0.3.0) : les détecteurs de sites en ont besoin.
                 WriteVerbose("Lecture de la topologie...");
-                var topoTask = new TopologyProvider().GetAsync(context, cts.Token);
+                var topoTask = new TopologyProvider().GetAsync(context, DcReachabilityChecker.FirstReachableHost(dcs), cts.Token);
                 topoTask.Wait(cts.Token);
                 topology = topoTask.Result;
 
