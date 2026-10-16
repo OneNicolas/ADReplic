@@ -869,18 +869,33 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Text="{Binding TopologyCaption}" FontSize="12"
-                                           Foreground="{DynamicResource SubtleText}" Margin="0,0,0,8"
-                                           Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToVisibleConverter.Instance}}" />
+                                <Grid Grid.Row="0" Margin="0,0,0,8"
+                                      Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                    <TextBlock Text="{Binding TopologyCaption}" FontSize="12" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource SubtleText}" />
+                                    <!-- Zoom (retour terrain v0.9.0) : molette sur le dessin, boutons, « Ajuster » = tenir dans la zone -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="−" Width="30" Padding="0,2" Click="OnTopologyZoomOut" ToolTip="Zoom arrière (molette)" />
+                                        <TextBlock x:Name="TopologyZoomLabel" Text="100 %" Width="48" TextAlignment="Center" VerticalAlignment="Center"
+                                                   FontSize="11" Foreground="{DynamicResource SubtleText}" />
+                                        <Button Content="+" Width="30" Padding="0,2" Click="OnTopologyZoomIn" ToolTip="Zoom avant (molette)" />
+                                        <Button Content="Ajuster" Margin="8,0,0,0" Padding="10,2" Click="OnTopologyZoomFit" ToolTip="Adapter le dessin à la zone visible" />
+                                    </StackPanel>
+                                </Grid>
 
                                 <TextBlock Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{DynamicResource SubtleText}" FontSize="13"
                                            Text="Aucune topologie à afficher : lancez un audit ou ouvrez un audit JSON."
                                            Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToCollapsedConverter.Instance}}" />
 
-                                <Viewbox Grid.Row="1" Stretch="Uniform" StretchDirection="Both"
-                                         Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
-                                    <Grid Width="1000" Height="620">
+                                <ScrollViewer Grid.Row="1" x:Name="TopologyScroll"
+                                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                              PreviewMouseWheel="OnTopologyMouseWheel" SizeChanged="OnTopologyViewportSizeChanged"
+                                              Visibility="{Binding HasTopologyGraph, Converter={x:Static vm:BoolToVisibleConverter.Instance}}">
+                                    <Grid Width="1000" Height="620" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Grid.LayoutTransform>
+                                            <ScaleTransform x:Name="TopologyScale" ScaleX="1" ScaleY="1" />
+                                        </Grid.LayoutTransform>
                                         <!-- Arêtes : liens inter-sites, couleur = tier de coût, épaisseur inverse au coût -->
                                         <ItemsControl ItemsSource="{Binding TopologyGraph.Edges}">
                                             <ItemsControl.ItemsPanel>
@@ -962,9 +977,9 @@
                                                             </ItemsControl>
                                                         </Border.ToolTip>
                                                         <StackPanel>
-                                                            <TextBlock Text="{Binding SiteName}" FontWeight="SemiBold" FontSize="13"
+                                                            <TextBlock Text="{Binding SiteName}" FontWeight="SemiBold" FontSize="15"
                                                                        Foreground="{DynamicResource Foreground}" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Text="{Binding Location}" FontSize="10" Foreground="{DynamicResource SubtleText}"
+                                                            <TextBlock Text="{Binding Location}" FontSize="11" Foreground="{DynamicResource SubtleText}"
                                                                        TextTrimming="CharacterEllipsis" Margin="0,0,0,4"
                                                                        Visibility="{Binding Location, Converter={x:Static vm:NullToCollapsedConverter.Instance}}" />
                                                             <ItemsControl ItemsSource="{Binding VisibleDomainControllers}">
@@ -973,7 +988,7 @@
                                                                         <StackPanel Orientation="Horizontal" Height="20">
                                                                             <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center"
                                                                                      Fill="{Binding IsReachable, Converter={x:Static vm:ReachabilityToBrushConverter.Instance}}" />
-                                                                            <TextBlock Text="{Binding HostName}" FontSize="11" VerticalAlignment="Center"
+                                                                            <TextBlock Text="{Binding HostName}" FontSize="12" VerticalAlignment="Center"
                                                                                        Foreground="{DynamicResource Foreground}" TextTrimming="CharacterEllipsis" MaxWidth="180" />
                                                                         </StackPanel>
                                                                     </DataTemplate>
@@ -992,7 +1007,7 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </Grid>
-                                </Viewbox>
+                                </ScrollViewer>
 
                                 <!-- Légende -->
                                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0"

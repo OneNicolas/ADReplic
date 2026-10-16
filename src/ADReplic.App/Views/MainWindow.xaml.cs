@@ -127,7 +127,64 @@ namespace ADReplic.App.Views
 
                 // Le sous-VM Compare a besoin de son propre OpenFileDialog (filtré JSON).
                 vm.Compare.OnPickFile = AskPickJsonPath;
+
+                // Nouveau graphe de topologie : on repart en ajustement automatique.
+                vm.PropertyChanged += (_, args) =>
+                {
+                    if (args.PropertyName == nameof(MainViewModel.TopologyGraph))
+                    {
+                        _topologyAutoFit = true;
+                        Dispatcher.BeginInvoke(new Action(FitTopology), System.Windows.Threading.DispatcherPriority.Loaded);
+                    }
+                };
             }
+        }
+
+        // === Zoom de la vue topologie (v0.9.0) ==============================
+        // Le zoom est une affaire de vue : il reste dans le code-behind, le VM ne
+        // connaît que le graphe. Ajustement automatique jusqu'au premier zoom manuel.
+
+        private const double TopologyCanvasWidth  = 1000;
+        private const double TopologyCanvasHeight = 620;
+        private const double TopologyMinZoom = 0.25;
+        private const double TopologyMaxZoom = 4.0;
+        private bool _topologyAutoFit = true;
+
+        private void OnTopologyMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // La molette zoome au lieu de faire défiler : c'est ce qu'on attend d'un schéma.
+            SetTopologyZoom(TopologyScale.ScaleX * (e.Delta > 0 ? 1.15 : 1 / 1.15), manual: true);
+            e.Handled = true;
+        }
+
+        private void OnTopologyZoomIn(object sender, RoutedEventArgs e)  => SetTopologyZoom(TopologyScale.ScaleX * 1.25, manual: true);
+        private void OnTopologyZoomOut(object sender, RoutedEventArgs e) => SetTopologyZoom(TopologyScale.ScaleX / 1.25, manual: true);
+
+        private void OnTopologyZoomFit(object sender, RoutedEventArgs e)
+        {
+            _topologyAutoFit = true;
+            FitTopology();
+        }
+
+        private void OnTopologyViewportSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_topologyAutoFit) FitTopology();
+        }
+
+        private void FitTopology()
+        {
+            if (TopologyScroll.ViewportWidth <= 0 || TopologyScroll.ViewportHeight <= 0) return;
+            var fit = Math.Min(TopologyScroll.ViewportWidth / TopologyCanvasWidth, TopologyScroll.ViewportHeight / TopologyCanvasHeight);
+            SetTopologyZoom(fit, manual: false);
+        }
+
+        private void SetTopologyZoom(double zoom, bool manual)
+        {
+            if (manual) _topologyAutoFit = false;
+            zoom = Math.Max(TopologyMinZoom, Math.Min(TopologyMaxZoom, zoom));
+            TopologyScale.ScaleX = zoom;
+            TopologyScale.ScaleY = zoom;
+            TopologyZoomLabel.Text = $"{Math.Round(zoom * 100)} %";
         }
 
         private void ShowCredentialsDialog(MainViewModel vm)
