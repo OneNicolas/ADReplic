@@ -84,8 +84,12 @@ namespace ADReplic.Core.Diagnostics
                 parts.Add($"{Plural(warningLinks, "lien en avertissement", "liens en avertissement")}");
 
             // Le DC injoignable et ses conséquences (ports, SRV orphelins) sont déjà
-            // couverts par la phrase ci-dessus : on ne compte que les anomalies propres.
-            var standaloneIssues = IssueGrouper.TopLevelExcludingUnreachable(issues);
+            // couverts par la phrase ci-dessus, et REPLICATION_LINK_FAILING décrit le
+            // même fait que le compteur de liens en échec : on ne compte que les
+            // anomalies de configuration à proprement parler.
+            var standaloneIssues = IssueGrouper.TopLevelExcludingUnreachable(issues)
+                .Where(i => i.Code != ReplicationLinkFailingDetector.Code)
+                .ToList();
             if (standaloneIssues.Count > 0) parts.Add(DescribeIssues(standaloneIssues));
 
             var sentence = string.Join(" ; ", parts) + ".";

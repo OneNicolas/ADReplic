@@ -113,11 +113,6 @@ namespace ADReplic.Core.Diagnostics.Issues
         /// les cibles SRV issues du DNS portent souvent un point final (FQDN absolu)
         /// que les noms de l'inventaire n'ont pas.
         /// </summary>
-        private static string NormalizeHost(string host)
-        {
-            if (string.IsNullOrWhiteSpace(host)) return null;
-            var normalized = host.Trim().TrimEnd('.');
-            return normalized.Length == 0 ? null : normalized;
-        }
+        private static string NormalizeHost(string host) => HostNameNormalizer.Normalize(host);
     }
 }

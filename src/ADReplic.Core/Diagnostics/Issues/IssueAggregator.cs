@@ -75,6 +75,8 @@ namespace ADReplic.Core.Diagnostics.Issues
             yield return new DnsSrvPointsToDeadDcDetector();
             // Horloges (v0.8.0, silencieux si ClockHealth == null)
             yield return new ClockSkewDetector();
+            // Liens Failing hors DC injoignable (v0.9.0, backlog 5.5)
+            yield return new ReplicationLinkFailingDetector();
         }
     }
 }

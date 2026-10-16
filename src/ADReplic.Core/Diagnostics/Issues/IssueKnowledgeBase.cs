@@ -136,7 +136,12 @@ namespace ADReplic.Core.Diagnostics.Issues
                 ["DC_CLOCK_SKEW"] = E(
                     "Kerberos tolère 5 minutes d'écart au maximum : au-delà, les tickets sont rejetés. Les utilisateurs du site de ce DC n'arrivent plus à ouvrir de session, les applications reçoivent des erreurs d'authentification intermittentes et la réplication avec ce DC échoue (erreurs « clock skew too great »).",
                     "1. Sur le DC décalé : w32tm /query /status et w32tm /query /source pour voir d'où il prend l'heure.\n2. Vérifier que le maître PDC est synchronisé sur une source externe fiable (NTP) et que les autres DC suivent la hiérarchie du domaine (w32tm /config /syncfromflags:domhier).\n3. Si le DC est une machine virtuelle : désactiver la synchronisation d'horloge de l'hyperviseur sur les DC, ou la rendre cohérente avec la hiérarchie AD.\n4. Resynchroniser : w32tm /resync /force, puis relancer l'audit.",
-                    Learn + "windows-server/networking/windows-time-service/windows-time-service-tools-and-settings")
+                    Learn + "windows-server/networking/windows-time-service/windows-time-service-tools-and-settings"),
+
+                ["REPLICATION_LINK_FAILING"] = E(
+                    "Les deux DC divergent : un mot de passe changé, un compte créé ou une GPO modifiée d'un côté restent invisibles de l'autre. Les utilisateurs voient des comportements incohérents selon le DC qui les sert. Passée la durée de vie des tombstones (60 ou 180 jours), le lien ne peut plus être rattrapé sans intervention lourde.",
+                    "1. Vérifier que le DC source répond et que les ports RPC (135 + ports dynamiques) sont ouverts entre les deux DC : Test-NetConnection <source> -Port 135.\n2. Lire le détail de l'erreur côté destination : repadmin /showrepl <destination> et l'explication du code (onglet Échecs actifs ou Get-ADRErrorExplanation).\n3. Vérifier la résolution DNS du nom et du CNAME _msdcs de la source depuis la destination, et l'écart d'horloge entre les deux DC.\n4. Une fois la cause corrigée, forcer une synchronisation : repadmin /syncall <destination> /AdeP, puis relancer l'audit.",
+                    Learn + "troubleshoot/windows-server/active-directory/diagnose-replication-failures")
             };
         }
     }

@@ -296,5 +296,53 @@ namespace ADReplic.Core.Tests.Diagnostics
 
             Assert.Contains("DC seul", AuditSummaryWriter.Write(snap));
         }
+
+        [Fact]
+        public void Failing_link_issue_is_not_counted_twice()
+        {
+            // Le detecteur REPLICATION_LINK_FAILING decrit le meme fait que le compteur
+            // de liens en echec : la phrase ne doit pas dire « 1 lien en echec ;
+            // 1 anomalie de configuration » pour un seul incident.
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02") },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                ReplicationLinks = new[]
+                {
+                    new ReplicationLink { DestinationDc = "DC02", SourceDc = "DC01", Status = ReplicationLinkStatus.Failing },
+                    new ReplicationLink { DestinationDc = "DC01", SourceDc = "DC02", Status = ReplicationLinkStatus.Healthy }
+                },
+                Issues = new[] { Issue(ReplicationLinkFailingDetector.Code, IssueSeverity.Critical) }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("1 lien de réplication sur 2", text);
+            Assert.DoesNotContain("anomalie", text);
+        }
+
+        [Fact]
+        public void Failing_link_issue_does_not_hide_other_issues()
+        {
+            var snap = new AuditSnapshot
+            {
+                DomainControllers = new[] { Dc("DC01"), Dc("DC02") },
+                ReplicationFailures = new ReplicationFailureInfo[0],
+                ReplicationLinks = new[]
+                {
+                    new ReplicationLink { DestinationDc = "DC02", SourceDc = "DC01", Status = ReplicationLinkStatus.Failing }
+                },
+                Issues = new[]
+                {
+                    Issue(ReplicationLinkFailingDetector.Code, IssueSeverity.Critical),
+                    Issue("SITE_NO_SUBNET", IssueSeverity.Warning)
+                }
+            };
+
+            var text = AuditSummaryWriter.Write(snap);
+
+            Assert.Contains("1 anomalie de configuration", text);
+            Assert.DoesNotContain("critique", text);
+        }
     }
 }

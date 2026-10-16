@@ -21,7 +21,8 @@ namespace ADReplic.Core.Tests.Diagnostics.Issues
             "DNS_RESOLUTION_ERROR", "DNS_DC_A_RECORD_MISSING",
             "PORT_CRITICAL_CLOSED", "PORT_CLOSED_OR_FILTERED",
             "DNS_SRV_POINTS_TO_DEAD_DC",
-            "DC_CLOCK_SKEW"
+            "DC_CLOCK_SKEW",
+            "REPLICATION_LINK_FAILING"
         };
 
         [Fact]
