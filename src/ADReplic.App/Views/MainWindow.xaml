@@ -544,10 +544,14 @@
                                     <DataGridTemplateColumn Header="" Width="36" CanUserResize="False" SortMemberPath="IsReachable">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Ellipse Width="10" Height="10"
-                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                         Fill="{Binding IsReachable, Converter={x:Static vm:ReachabilityToBrushConverter.Instance}}"
-                                                         ToolTip="{Binding IsReachable, Converter={x:Static vm:ReachabilityToTextConverter.Instance}}" />
+                                                <!-- Même structure que la pastille de Diagnostics ; le tooltip est porté
+                                                     par un conteneur transparent pour couvrir toute la cellule. -->
+                                                <Border Background="Transparent" Margin="-12,-6"
+                                                        ToolTip="{Binding IsReachable, Converter={x:Static vm:ReachabilityToTextConverter.Instance}}">
+                                                    <Ellipse Width="10" Height="10"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                             Fill="{Binding IsReachable, Converter={x:Static vm:ReachabilityToBrushConverter.Instance}}" />
+                                                </Border>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
