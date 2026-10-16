@@ -72,7 +72,8 @@ namespace ADReplic.Core.Topology
         public const double CanvasWidth = 1000;
         public const double CanvasHeight = 620;
         public const double NodeWidth = 220;
-        public const double NodeHeaderHeight = 44;
+        // En-tête = padding vertical de la carte (12) + nom du site 15 px (~22) + lieu 11 px (~18) + marge (4) + réserve.
+        public const double NodeHeaderHeight = 64;
         public const double DcRowHeight = 20;
         public const int MaxVisibleDcs = 5;
         public static readonly double MaxNodeHeight = NodeHeaderHeight + (MaxVisibleDcs + 1) * DcRowHeight;

@@ -172,5 +172,17 @@ namespace ADReplic.Core.Tests.Topology
             Assert.True(big.Height <= TopologyLayout.MaxNodeHeight);
             Assert.True(big.HiddenDcCount > 0);
         }
+
+        [Fact]
+        public void Node_height_leaves_room_for_a_two_line_header_and_each_dc_row()
+        {
+            // Retour terrain : avec 44 px d'en-tête, la carte coupait le lieu et le premier DC.
+            // Padding 12 + nom 15 px (~22) + lieu 11 px (~18) + marge 4 = 56 au minimum.
+            var node = TopologyLayout.Build(new[] { new SiteInfo { Name = "Paris", Location = "Siège", DomainControllers = new[] { "dc1", "dc2" } } },
+                new SiteLinkInfo[0], new DomainControllerInfo[0]).Nodes.Single();
+
+            Assert.True(TopologyLayout.NodeHeaderHeight >= 56);
+            Assert.Equal(TopologyLayout.NodeHeaderHeight + 2 * TopologyLayout.DcRowHeight, node.Height);
+        }
     }
 }
